@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="开仓 — 加密货币交易分析台: 30币池信号扫描、盘口大墙、大单追踪、策略回测与模拟交易。赢时赚多·输时亏少。">
+  <title>开仓 · 赢时赚多 输时亏少</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 顶栏: 全局控制 -->
+  <header class="topbar">
+    <div class="logo">📈 开仓</div>
+    <div class="motto">赢时赚多 · 输时亏少</div>
+    <div class="controls">
+      <select id="coinSel" title="选择币种(币安+OKX双所30币池)">
+        <option value="BTCUSDT">BTC 比特币</option>
+      </select>
+      <div class="src-toggle">
+        <button class="src-btn active" id="srcBn">币安</button>
+        <button class="src-btn" id="srcOkx">OKX</button>
+      </div>
+      <select id="intervalSel" title="刷新间隔">
+        <option value="5" selected>5秒</option>
+        <option value="10">10秒</option>
+        <option value="30">30秒</option>
+        <option value="60">60秒</option>
+      </select>
+      <button id="refreshBtn" title="立即刷新">🔄</button>
+      <button id="scanBtn" title="扫描30币开仓机会 (快捷键 S)">🎯 扫描</button>
+    </div>
+    <div class="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="lastUpdate">--:--:--</span>
+    </div>
+  </header>
+
+  <!-- 主流币价格条 -->
+  <div class="coin-strip" id="coinStrip">
+    <span class="loading">加载中…</span>
+  </div>
+
+  <!-- 第一行: 三个图表 -->
+  <div class="grid charts-row">
+    <div class="card chart-card">
+      <div class="card-title">📈 价格走势 <span class="sub">4小时 · 5分钟</span></div>
+      <div id="priceChart" class="chart-area"><span class="loading">加载中…</span></div>
+      <div class="chart-info" id="priceInfo"></div>
+    </div>
+    <div class="card chart-card">
+      <div class="card-title">📊 成交量 · 主动买占比 <span class="sub">4小时</span>
+        <button class="xray-btn" id="xrayBtn" title="成交透视">🔍 透视</button>
+      </div>
+      <div id="volChart" class="chart-area"><span class="loading">加载中…</span></div>
+      <div class="chart-info" id="volInfo"></div>
+    </div>
+    <div class="card chart-card">
+      <div class="card-title">🌐 总市值 <span class="sub">4小时趋势</span></div>
+      <div id="mcChart" class="chart-area"><span class="loading">加载中…</span></div>
+      <div class="chart-info" id="mcInfo"></div>
+    </div>
+  </div>
+
+  <!-- 第二行: 信号 + 趋势 + 计算器 -->
+  <div class="grid analysis-row">
+    <div class="card signal-card">
+      <div class="card-title">🎯 信号计算器</div>
+      <div class="score-gauge">
+        <div class="sg-score" id="signalScore">--</div>
+        <div class="sg-profile" id="signalProfile"></div>
+        <div class="sg-bar"><div class="sg-fill" id="scoreBar"></div></div>
+        <div class="sg-ticks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+      </div>
+      <div id="signalList" class="signal-list"><span class="loading">等待数据…</span></div>
+      <div id="signalVerdict" class="verdict">--</div>
+      <div class="bt-btns">
+        <button id="btLong" class="bt-btn long">📈 回测做多</button>
+        <button id="btShort" class="bt-btn short">📉 回测做空</button>
+      </div>
+      <div id="btResult" class="bt-result hidden"></div>
+      <div id="btTrades" class="bt-trades hidden"></div>
+    </div>
+    <div class="card forward-card">
+      <div class="card-title">📋 模拟交易记录 <span class="sub">策略 vs 冲动</span></div>
+      <button id="simStartBtn" class="sim-start">🚀 策略开仓（立即成交）</button>
+      <div id="simForm" class="sim-form hidden">
+        <div class="sim-form-title">⚙️ 策略交易参数</div>
+        <div class="impulse-btns" style="margin-bottom:6px">
+          <button id="simDirLong" class="impulse-btn il" style="padding:4px">📈 做多</button>
+          <button id="simDirShort" class="impulse-btn is" style="padding:4px">📉 做空</button>
+        </div>
+        <div class="sim-form-grid">
+          <label>保证金(U)<input id="simMargin" type="number" value="100" min="10"></label>
+          <label>杠杆<input id="simLev" type="number" value="10" min="1" max="125">x</label>
+        </div>
+        <div id="simPreview" class="sim-preview"></div>
+        <button id="simConfirm" class="sim-confirm">✅ 确认开仓（以当前价格立即成交）</button>
+      </div>
+      <div id="simCompare" class="sim-compare"></div>
+      <div id="simActive" class="sim-active hidden"></div>
+      <div id="simHistory" class="sim-history"><span class="loading">暂无记录</span></div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button id="viewReportBtn" class="export-btn" style="flex:1">📋 查看完整报告</button>
+        <button id="exportBtn" class="export-btn" style="flex:1" title="写入index.html所在文件夹(需先运行: python3 server.py)">⬇️ 下载.md</button>
+      </div>
+    </div>
+    <div class="trend-calc-col">
+    <div class="card trend-card">
+      <div class="card-title">📊 趋势解读 <span class="sub">各币种量价分析</span></div>
+      <div id="trendList" class="trend-list"><span class="loading">加载中…</span></div>
+    </div>
+    <div class="card calc-card">
+      <div class="card-title">🧮 爆仓价 & 利润计算器 <span id="curPrice" class="calc-cur-price">--</span></div>
+      <div class="calc-grid">
+        <label>杠杆<input id="lev" type="number" value="10" min="1" max="125">x</label>
+        <label>保证金<input id="margin" type="number" value="100">U</label>
+        <label>开仓价<input id="entry" type="number" step="any" placeholder="自动现价">USDT</label>
+        <label>平仓价<input id="exitP" type="number" step="any" placeholder="可选">USDT</label>
+        <label>维持保证金率
+          <select id="mmr"><option value="0.004">0.4%</option><option value="0.005" selected>0.5%</option><option value="0.01">1%</option></select>
+        </label>
+      </div>
+      <div class="calc-tps">
+        <div class="ctp long">
+          <span class="ctp-h">📈 做多</span>
+          <span>爆仓 <b id="liqLong" class="c-red">--</b></span>
+          <span>止损(-1%) <b id="slLong" class="c-green">--</b></span>
+          <span>止盈(+2%) <b id="tpLong" class="c-green">--</b></span>
+        </div>
+        <div class="ctp short">
+          <span class="ctp-h">📉 做空</span>
+          <span>爆仓 <b id="liqShort" class="c-green">--</b></span>
+          <span>止损(-1%) <b id="slShort" class="c-red">--</b></span>
+          <span>止盈(+2%) <b id="tpShort" class="c-green">--</b></span>
+        </div>
+      </div>
+      <div class="calc-results">
+        <div class="cr"><label>做多利润</label><b id="pnlLong">--</b></div>
+        <div class="cr"><label>做空利润</label><b id="pnlShort">--</b></div>
+        <div class="cr"><label>仓位 ≈</label><b id="posSize">--</b></div>
+        <div class="cr"><label>止盈赚</label><b id="tpProfit" style="color:var(--down)">--</b></div>
+      </div>
+
+      <!-- 冲动开仓区(计算器下方) -->
+      <div class="impulse-box">
+        <div class="impulse-title">🔥 冲动开仓 <span class="sub">不等信号 · 立即成交</span> <span id="impulseScore" class="sub" style="margin-left:auto">得分: --</span></div>
+        <div class="impulse-preview" id="impulsePreview"></div>
+        <div class="impulse-btns">
+          <button id="impulseLong" class="impulse-btn il">📈 立即做多</button>
+          <button id="impulseShort" class="impulse-btn is">📉 立即做空</button>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <footer>
+    数据源: Binance 公开API + CoinGecko · 全部模块由全局币种选择器联动 · <span id="dataRange"></span>
+  </footer>
+
+  <!-- 开仓机会扫描弹框 -->
+  <div class="xray-overlay hidden" id="scanOverlay">
+    <div class="xray-modal" style="max-width:600px">
+      <div class="xray-header">
+        <span class="xray-title">🎯 开仓机会扫描 <span id="scanSummary" class="sub"></span></span>
+        <button class="xray-close" id="scanClose">&times;</button>
+      </div>
+      <div class="xray-body">
+        <div class="xs-title">全池信号评分 <span class="sub">按最高分排序 · 点击币种直接跳转 · S键重扫</span></div>
+        <div id="scanList" class="scan-list"><span class="loading">按 S 或点按钮开始扫描</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 成交透视弹框 -->
+  <div class="xray-overlay hidden" id="xrayOverlay">
+    <div class="xray-modal">
+      <div class="xray-header">
+        <span class="xray-title">🔍 成交透视 · <span id="xraySym">--</span></span>
+        <button class="xray-close" id="xrayClose">&times;</button>
+      </div>
+      <div class="xray-body">
+        <div class="xray-section">
+          <div class="xs-title">📐 量价分布 <span class="sub">价格 × 成交量（真实成交密集区）</span></div>
+          <div id="xrayProfile" class="xray-profile"><span class="loading">分析中…</span></div>
+          <div class="xray-insight" id="xrayProfileInsight"></div>
+        </div>
+        <div class="xray-section">
+          <div class="xs-title">👥 交易者画像 <span class="sub">谁在买 · 谁在卖</span></div>
+          <div id="xrayTraders" class="xray-traders"><span class="loading">分析中…</span></div>
+          <div class="xray-insight" id="xrayTraderInsight"></div>
+        </div>
+        <div class="xray-section">
+          <div class="xs-title">🤝 市场共识 <span class="sub">交易者的期望与分歧</span></div>
+          <div id="xrayConsensus" class="xray-consensus"><span class="loading">分析中…</span></div>
+          <div class="xray-insight" id="xrayConsensusInsight"></div>
+        </div>
+        <div class="xray-section">
+          <div class="xs-title">🐋 大单成交 <span class="sub">时间倒序 · 买卖分区</span> <span id="tradeSummary" class="sub"></span></div>
+          <div id="tradesArea" class="xray-trades"><span class="loading">加载中…</span></div>
+        </div>
+        <div class="xray-section">
+          <div class="xs-title">🧱 盘口大墙 <span class="sub">支撑/阻力 + 行为追踪</span> <span id="wallTime" class="sub"></span></div>
+          <div id="wallsArea" class="xray-walls"><span class="loading">加载中…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 交易报告弹框 -->
+  <div class="xray-overlay hidden" id="reportOverlay">
+    <div class="xray-modal" style="max-width:600px">
+      <div class="xray-header">
+        <span class="xray-title">📋 交易报告</span>
+        <button class="xray-close" onclick="document.getElementById('reportOverlay').classList.add('hidden')">&times;</button>
+      </div>
+      <div class="xray-body" id="reportBody"></div>
+    </div>
+  </div>
+
+  <!-- 交易详情弹框 -->
+  <div class="xray-overlay hidden" id="tradeDetailOverlay">
+    <div class="xray-modal" style="max-width:480px">
+      <div class="xray-header">
+        <span class="xray-title" id="tdTitle">交易详情</span>
+        <button class="xray-close" onclick="document.getElementById('tradeDetailOverlay').classList.add('hidden')">&times;</button>
+      </div>
+      <div class="xray-body" id="tdBody"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
