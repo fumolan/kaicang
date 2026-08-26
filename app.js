@@ -248,6 +248,7 @@ function renderCoinStrip() {
       $("coinSel").value = coin;
       wallHistory.clear();
       $("entry").value = "";
+      resetSimForm();
       fetchAll();
     });
   });
@@ -819,6 +820,7 @@ function renderScanResults(results) {
       $("coinSel").value = coin;
       wallHistory.clear();
       $("entry").value = "";
+      resetSimForm();
       $("scanOverlay").classList.add("hidden");
       fetchAll();
     });
@@ -1224,6 +1226,15 @@ function updateSimDirButtons() {
 }
 $("simDirLong").addEventListener("click", () => { simDirection = "long"; updateSimDirButtons(); });
 $("simDirShort").addEventListener("click", () => { simDirection = "short"; updateSimDirButtons(); });
+
+// 切换币种时重置策略开仓表单: 方向回到默认, 表单收起
+// (避免带着上一个币种选的做多/做空直接开到新币上)
+function resetSimForm() {
+  simDirection = "long";
+  updateSimDirButtons();
+  $("simForm").classList.add("hidden");
+  $("simStartBtn").classList.remove("hidden");
+}
 
 // 点击"策略开仓" → 显示参数表单
 $("simStartBtn").addEventListener("click", () => {
@@ -1810,15 +1821,13 @@ $("exportBtn").addEventListener("click", async () => {
       URL.revokeObjectURL(a.href);
     }
   }));
-  // 按钮反馈: 写入文件夹(本地server.py) or 浏览器下载
+  // 按钮反馈: 写入文件夹 or 提示启动server.py
   const wrote = outcomes.filter(o => o.saved).length;
-  const isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
   const btn = $("exportBtn");
   const old = btn.textContent;
   btn.textContent = wrote
     ? `✅ ${wrote}个md已写入文件夹`
-    : isLocal ? "⬇️ 已下载(运行python3 server.py可直接写文件夹)"
-              : "⬇️ 已下载到浏览器下载文件夹";
+    : "⬇️ 已下载(运行python3 server.py可直接写文件夹)";
   setTimeout(() => { btn.textContent = old; }, 3500);
 });
 
@@ -1831,6 +1840,7 @@ $("coinSel").addEventListener("change", (e) => {
   coin = e.target.value;
   wallHistory.clear();
   $("entry").value = "";
+  resetSimForm();
   fetchAll();
 });
 $("intervalSel").addEventListener("change", (e) => {
