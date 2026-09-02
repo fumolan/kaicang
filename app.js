@@ -222,6 +222,7 @@ function renderAll(tickerMap) {
   renderWalls();
   updateCalc();
   checkSimTrades();
+  updateConfirmPrice();
 }
 
 // ==================== 主流币价格条 ====================
@@ -1329,7 +1330,15 @@ $("simStartBtn").addEventListener("click", () => {
 ["simMargin", "simLev"].forEach(id =>
   $(id).addEventListener("input", updateSimPreview));
 
+// 确认开仓按钮显示当前价(随刷新联动)
+function updateConfirmPrice() {
+  const el = $("simConfirmPrice");
+  if (!el) return;
+  const px = priceOf(coin);
+  el.textContent = px > 0 ? "@ " + fmtP(px) : "(等价格)";
+}
 function updateSimPreview() {
+  updateConfirmPrice();
   const m = +$("simMargin").value || 100;
   const lev = Math.min(125, Math.max(1, +$("simLev").value || 10));
   const mmr = 0.005;
