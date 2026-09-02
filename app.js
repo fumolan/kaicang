@@ -676,14 +676,14 @@ async function renderMCChart() {
     const valid = SYMBOLS.filter((_, i) => arr[i] && arr[i].length >= 48);
     if (valid.length < 3) return;
     const n = 48;
-    const wSum = valid.reduce((s, c) => s + MC_WEIGHTS[c], 0);
+    const wSum = valid.reduce((s, c) => s + (MC_WEIGHTS[c] || 0.0005), 0);
     const curve = [];
     for (let i = 0; i < n; i++) {
       let idx = 0;
       valid.forEach(c => {
         const j = SYMBOLS.indexOf(c);
         const p = +arr[j][i][4], lp = +arr[j][n - 1][4];
-        idx += (p / lp) * MC_WEIGHTS[c];
+        idx += (p / lp) * (MC_WEIGHTS[c] || 0.0005);
       });
       curve.push((idx / wSum) * globalMC);
     }
@@ -1914,14 +1914,20 @@ $("exportBtn").addEventListener("click", async () => {
 
 // ==================== 事件 & 初始化 ====================
 // 币种下拉从SYMBOLS自动生成(30币双所币池)
+// 支持 ?coin=XXXUSDT 直达(加密雷达跳转): 池外币动态加入, 照常显示与交易
+{
+  const pc = (new URLSearchParams(location.search).get("coin") || "").toUpperCase();
+  if (pc && /^[A-Z0-9]{1,14}USDT$/.test(pc)) {
+    if (!SYMBOLS.includes(pc)) {
+      SYMBOLS.push(pc);
+      META[pc] = { sym: pc.replace("USDT", ""), name: "" };
+    }
+    coin = pc;
+  }
+}
 $("coinSel").innerHTML = SYMBOLS.map(s =>
   `<option value="${s}">${META[s].sym}${META[s].name ? " " + META[s].name : ""}</option>`).join("");
 $("coinSel").value = coin;
-// 支持 ?coin=XXXUSDT 直达(加密雷达跳转)
-{
-  const pc = new URLSearchParams(location.search).get("coin");
-  if (pc && SYMBOLS.includes(pc)) { coin = pc; $("coinSel").value = pc; }
-}
 $("coinSel").addEventListener("change", (e) => {
   coin = e.target.value;
   wallHistory.clear();
