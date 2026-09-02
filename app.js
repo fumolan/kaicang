@@ -1917,6 +1917,11 @@ $("exportBtn").addEventListener("click", async () => {
 $("coinSel").innerHTML = SYMBOLS.map(s =>
   `<option value="${s}">${META[s].sym}${META[s].name ? " " + META[s].name : ""}</option>`).join("");
 $("coinSel").value = coin;
+// 支持 ?coin=XXXUSDT 直达(加密雷达跳转)
+{
+  const pc = new URLSearchParams(location.search).get("coin");
+  if (pc && SYMBOLS.includes(pc)) { coin = pc; $("coinSel").value = pc; }
+}
 $("coinSel").addEventListener("change", (e) => {
   coin = e.target.value;
   wallHistory.clear();
