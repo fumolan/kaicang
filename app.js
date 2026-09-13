@@ -1442,11 +1442,6 @@ $("simConfirm").addEventListener("click", () => {
     alert(`已有 ${META[coin].sym} 的${simDirection === "long" ? "做多" : "做空"}策略仓在运行`);
     return;
   }
-  const preScore = getCurrentSignalScore(simDirection);
-  if (preScore < 50 && !confirm(`⚠️ 当前${simDirection === "long" ? "做多" : "做空"}信号仅 ${preScore}/100 分(阈值50)。
-低于50分开仓 = 单信号赌博, 历史期望为负。
-交易计划卡里有环境+触发价, 建议按计划执行。
-仍要强行开仓吗?`)) return;
   const isLong = simDirection === "long";
   const imr = 1 / lev, mmr = 0.005;
   list.push({

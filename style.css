@@ -944,3 +944,8 @@ footer {
 .tp-row.wait { color: var(--muted); }
 .tp-row.note { color: var(--muted); font-size: 10.5px; border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 4px; }
 .tp-on { color: var(--down); font-weight: 700; }
+
+/* 对冲突破独立区 */
+.hedge-zone { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.hedge-btn { background: rgba(168,85,247,0.18); color: #c084fc; border: 1px solid rgba(168,85,247,0.5); border-radius: 8px; padding: 7px 16px; font-size: 12.5px; font-weight: 800; cursor: pointer; }
+.hedge-btn:hover { background: rgba(168,85,247,0.32); }
