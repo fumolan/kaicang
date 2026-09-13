@@ -1717,6 +1717,21 @@ $("hedgeStartBtn").addEventListener("click", () => {
   const done = klines5m.slice(0, -1);
   const h10 = Math.max(...done.slice(-10).map(k => +k[2]));
   const l10 = Math.min(...done.slice(-10).map(k => +k[3]));
+  // 确认弹窗: 展示两腿价位与双杀风险, 取消则不开
+  const longSL = l10, shortSL = h10;
+  const longTP = price + (price - l10) * 1.5, shortTP = price - (h10 - price) * 1.5;
+  const killLoss = m * lev * ((price - l10) / price + (h10 - price) / price);
+  if (!confirm(`🎭 对冲突破模式开仓确认
+
+将同时开两腿(各 $${m} × ${lev}x = $${(m * lev).toLocaleString()} 名义):
+
+  📈 多腿   止损 ${fmtP(longSL)}  →  止盈 ${fmtP(longTP)}
+  📉 空腿   止损 ${fmtP(shortSL)}  →  止盈 ${fmtP(shortTP)}
+
+⚠️ 震荡双杀风险: 两腿全扫约亏 $${killLoss.toFixed(1)}
+📊 组合需约 65% 单组胜率才能盈利
+
+确认开仓?`)) return;
   const pid = Date.now();
   const R = 1.5;
   const mk = (dir) => {
