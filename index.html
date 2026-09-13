@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>赢时赚多 · 输时亏少 — Crypto Dashboard</title>
-  <link rel="stylesheet" href="style.css?v=20260913133156">
+  <link rel="stylesheet" href="style.css?v=20260913154220">
 </head>
 <body>
   <!-- 顶栏: 全局控制 -->
@@ -166,8 +166,21 @@
   <div class="xray-overlay hidden" id="scanOverlay">
     <div class="xray-modal" style="max-width:600px">
       <div class="xray-header">
-        <span class="xray-title">🎯 开仓机会扫描 <span id="scanSummary" class="sub"></span></span>
+        <span class="xray-title">📡 扫描 <span id="scanSummary" class="sub"></span></span>
         <button class="xray-close" id="scanClose">&times;</button>
+      </div>
+      <div class="scan-tabs">
+        <button class="rt2-btn active" id="tabSignal">🎯 信号(30池)</button>
+        <button class="rt2-btn" id="radarTab" data-src="binance">🔥 热点·币安</button>
+        <button class="rt2-btn" data-src="okx">🔥 热点·OKX</button>
+      </div>
+      <div id="radarWrap" class="hidden">
+        <div class="hot-table-wrap">
+          <table class="hot-table">
+            <thead id="radarHead"></thead>
+            <tbody id="radarBody"></tbody>
+          </table>
+        </div>
       </div>
       <div class="xray-body">
         <div class="xs-title">全池信号评分 <span class="sub">按最高分排序 · 点击币种直接跳转 · S键重扫</span></div>
@@ -249,6 +262,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260913134608"></script>
+  <script src="app.js?v=20260913154220"></script>
 </body>
 </html>

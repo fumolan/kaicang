@@ -952,3 +952,21 @@ footer {
 
 .hedge-start { background: rgba(168,85,247,0.22); color: #c084fc; border: 1px solid rgba(168,85,247,0.55); margin-top: 6px; }
 .hedge-start:hover { background: rgba(168,85,247,0.38); }
+
+/* 扫描弹窗标签 + 雷达热表 */
+.scan-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.rt2-btn { background: var(--bg); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; font-size: 11.5px; cursor: pointer; }
+.rt2-btn.active { color: var(--accent); border-color: var(--accent); }
+.hot-table-wrap { max-height: 60vh; overflow-y: auto; }
+.hot-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.hot-table th { font-size: 10.5px; color: var(--muted); text-align: right; padding: 4px 7px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.hot-table th:nth-child(1), .hot-table th:nth-child(2) { text-align: left; }
+.hot-table td { font-size: 11.5px; padding: 4px 7px; text-align: right; border-bottom: 1px solid rgba(42,50,66,0.35); white-space: nowrap; }
+.hot-table td.dim { color: var(--muted); font-size: 10.5px; }
+.hot-table td.sym { text-align: left; }
+.hot-table td.num.up { color: var(--up); }
+.hot-table td.num.down { color: var(--down); }
+.hot-table td.heatc { font-weight: 800; color: var(--accent); }
+.hot-table tr.rrow { cursor: pointer; }
+.hot-table tr.rrow:hover { background: rgba(240,185,11,0.07); }
+.hot-table td.bdiff-hi { font-weight: 700; }

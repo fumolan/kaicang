@@ -2058,6 +2058,165 @@ $("exportBtn").addEventListener("click", async () => {
   setTimeout(() => { btn.textContent = old; }, 3500);
 });
 
+
+// ==================== 热点雷达(移植自crypto-radar, 币安/OKX双源) ====================
+let RADAR_OKX_URL = "https://cdn.jsdelivr.net/gh/fumolan/crypto-radar@main/data-okx.json";
+const R_STABLES = new Set(["USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDP", "PAXG", "EUR", "GBP", "TRY", "BRL",
+  "AEUR", "USD1", "EURI", "XUSD", "USDE", "USTC", "FRAX"]);
+let radarBusy = false, okxLive = false, radarSrcCur = "binance";
+
+async function radarBinance() {
+  const data = await apiGet("/api/v3/ticker/24hr");
+  const rows = [];
+  for (const t of data) {
+    const s = t.symbol || "";
+    if (!s.endsWith("USDT")) continue;
+    const base = s.slice(0, -4);
+    if (R_STABLES.has(base) || s.endsWith("UPUSDT") || s.endsWith("DOWNUSDT")) continue;
+    const qv = +t.quoteVolume || 0;
+    if (qv < 1e6) continue;
+    rows.push({ sym: base, price: +t.lastPrice || 0, chg24: +t.priceChangePercent || 0, vol24: qv });
+  }
+  const syms = rows.map(r => r.sym);
+  const maps = await Promise.all(["1h", "4h", "7d"].map(async (w) => {
+    const out = {};
+    for (let i = 0; i < syms.length; i += 100) {
+      const q = encodeURIComponent(JSON.stringify(syms.slice(i, i + 100).map(x => x + "USDT")));
+      const d = await apiGet(`/api/v3/ticker?symbols=${q}&windowSize=${w}`).catch(() => null);
+      for (const t of (d || [])) out[t.symbol.slice(0, -4)] = +t.priceChangePercent || 0;
+    }
+    return out;
+  }));
+  rows.forEach(r => { r.c1 = maps[0][r.sym] ?? 0; r.c4 = maps[1][r.sym] ?? 0; r.c7 = maps[2][r.sym] ?? 0; });
+  applyHeatR(rows);
+  return rows;
+}
+
+async function radarOKX() {
+  const snap = await fetch(RADAR_OKX_URL + "?v=" + Date.now(), { cache: "no-store" }).then(r => r.json()).catch(() => null);
+  if (!snap || !snap.rows) throw new Error("OKX快照不可用");
+  const rows = snap.rows.map(r => ({ sym: r.sym, price: r.price, c1: r.c1 || 0, c4: r.c4 || 0, chg24: r.c24 || 0, c7: r.c7 || 0, vol24: r.vol24 || 0 }));
+  let live = false;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 6000);
+    const d = await fetch("https://www.okx.com/api/v5/market/tickers?instType=SPOT", { signal: ctrl.signal }).then(r => r.json());
+    clearTimeout(t);
+    if (d.code === "0") {
+      const m = {};
+      for (const x of d.data) if (x.instId.endsWith("-USDT")) m[x.instId.slice(0, -5)] = x;
+      rows.forEach(r => { const x = m[r.sym]; if (x) { const last = +x.last, o = +x.open24h; r.price = last; if (o > 0) r.chg24 = (last / o - 1) * 100; r.vol24 = +x.volCcy24h || r.vol24; } });
+      live = true;
+    }
+  } catch (e) { /* 快照价 */ }
+  try {
+    const bn = await apiGet("/api/v3/ticker/24hr");
+    const bm = {};
+    for (const t of bn) if (t.symbol.endsWith("USDT")) bm[t.symbol.slice(0, -4)] = +t.priceChangePercent || 0;
+    rows.forEach(r => { if (bm[r.sym] !== undefined) r.bdiff = r.chg24 - bm[r.sym]; });
+  } catch (e) { /* 无背离 */ }
+  okxLive = live;
+  applyHeatR(rows);
+  return { rows, snap };
+}
+
+function pctRankR(arr, v) { let n = 0; for (const x of arr) if (x <= v) n++; return n / arr.length * 100; }
+function applyHeatR(rows) {
+  const rank = (key) => {
+    const idx = rows.map((r, i) => [r[key], i]).sort((a, b) => a[0] - b[0]);
+    const out = new Array(rows.length);
+    idx.forEach(([, i], k) => { out[i] = k / Math.max(1, rows.length - 1) * 100; });
+    return out;
+  };
+  const p1 = rank("c1"), p4 = rank("c4"), p24 = rank("chg24"), p7 = rank("c7");
+  rows.forEach((r, i) => { r.heat = (p1[i] + p4[i] + p24[i] + p7[i]) / 4; });
+}
+function classifyR(r) {
+  const { c1, c4, chg24, c7 } = r;
+  if (c1 > 0 && c4 > 0 && chg24 > 0 && c7 > 0) return "四周期共振";
+  if (c1 > 0 && c4 > 0 && (chg24 <= 0 || c7 <= 0)) return "短周期启动";
+  if (c7 > 0 && chg24 > 0 && (c1 <= 0 || c4 <= 0)) return "趋势回调";
+  if (c7 < 0 && chg24 <= 0 && c1 > 0) return "超跌反弹";
+  return "混合";
+}
+const rFmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+const rFmtVol = (v) => v >= 1e9 ? "$" + (v / 1e9).toFixed(2) + "B" : v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : "$" + (v / 1e3).toFixed(0) + "K";
+
+function renderRadar(rows, meta) {
+  const sorted = [...rows].sort((a, b) => b.heat - a.heat).slice(0, 30);
+  const okx = radarSrcCur === "okx";
+  $("radarHead").innerHTML = `<tr><th>#</th><th>币种</th><th>1小时</th><th>4小时</th><th>24小时</th><th>7天</th><th>热度</th><th>结构</th>${okx ? '<th title="OKX24h-币安24h, ≥1.5%为背离">vs币安</th>' : ""}<th>24h额</th></tr>`;
+  $("radarBody").innerHTML = sorted.map((r, i) => {
+    const cls = (v) => v >= 0 ? "up" : "down";
+    const tag = classifyR(r);
+    const td = (v) => `<td class="num ${cls(v)}">${rFmtPct(v)}</td>`;
+    const dCell = okx ? `<td class="num ${r.bdiff === undefined ? "" : cls(r.bdiff)} ${Math.abs(r.bdiff || 0) >= 1.5 ? "bdiff-hi" : ""}">${r.bdiff === undefined ? "--" : (okxLive ? "" : "≈") + (r.bdiff >= 0 ? "+" : "") + r.bdiff.toFixed(1) + "%"}</td>` : "";
+    return `<tr class="rrow" data-sym="${r.sym}">
+      <td class="dim">${i + 1}</td><td class="sym"><b>${r.sym}</b></td>
+      ${td(r.c1)}${td(r.c4)}${td(r.chg24)}${td(r.c7)}
+      <td class="num heatc">${Math.round(r.heat)}</td>
+      <td class="dim">${tag}</td>${dCell}
+      <td class="dim">${rFmtVol(r.vol24)}</td>
+    </tr>`;
+  }).join("");
+  $("radarBody").querySelectorAll("tr").forEach(el =>
+    el.addEventListener("click", () => radarSelect(el.dataset.sym)));
+  $("scanSummary").innerHTML = meta;
+}
+
+// 雷达选中币 → 池外币动态加入并定位(复用?coin=逻辑)
+function radarSelect(sym) {
+  const code = sym + "USDT";
+  if (!SYMBOLS.includes(code)) {
+    SYMBOLS.push(code);
+    META[code] = { sym, name: "" };
+    $("coinSel").innerHTML = SYMBOLS.map(s =>
+      `<option value="${s}">${META[s].sym}${META[s].name ? " " + META[s].name : ""}</option>`).join("");
+  }
+  coin = code;
+  $("coinSel").value = code;
+  wallHistory.clear();
+  $("entry").value = "";
+  $("scanOverlay").classList.add("hidden");
+  resetSimForm();
+  fetchAll();
+}
+
+async function runRadar(src) {
+  if (radarBusy) return;
+  radarBusy = true;
+  radarSrcCur = src;
+  $("radarWrap").classList.remove("hidden");
+  $("scanList").classList.add("hidden");
+  $("radarBody").innerHTML = `<tr><td colspan="9" class="dim">雷达扫描中…</td></tr>`;
+  try {
+    if (src === "binance") {
+      const rows = await radarBinance();
+      renderRadar(rows, `币安${rows.length}对 · 四周期热度`);
+    } else {
+      const { rows, snap } = await radarOKX();
+      const ageMin = Math.max(0, Math.round((Date.now() / 1000 - snap.ts) / 60));
+      renderRadar(rows, `OKX${rows.length}对 · ${okxLive ? "实时价+快照窗口" : "快照" + ageMin + "分钟前"} · 四周期热度`);
+    }
+  } catch (e) {
+    $("radarBody").innerHTML = `<tr><td colspan="9" class="dim">扫描失败: ${e.message}</td></tr>`;
+  } finally { radarBusy = false; }
+}
+
+function showSignalTab() {
+  document.querySelectorAll(".rt2-btn").forEach(b => b.classList.remove("active"));
+  $("tabSignal").classList.add("active");
+  $("radarWrap").classList.add("hidden");
+  $("scanList").classList.remove("hidden");
+}
+$("tabSignal").addEventListener("click", showSignalTab);
+document.querySelectorAll(".rt2-btn[data-src]").forEach(b =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".rt2-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    runRadar(b.dataset.src);
+  }));
+
 // ==================== 事件 & 初始化 ====================
 // 币种下拉从SYMBOLS自动生成(30币双所币池)
 // 支持 ?coin=XXXUSDT 直达(加密雷达跳转): 池外币动态加入, 照常显示与交易
