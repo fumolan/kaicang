@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>赢时赚多 · 输时亏少 — Crypto Dashboard</title>
-  <link rel="stylesheet" href="style.css?v=20260913102751">
+  <link rel="stylesheet" href="style.css?v=20260913133156">
 </head>
 <body>
   <!-- 顶栏: 全局控制 -->
@@ -85,6 +85,7 @@
     <div class="card forward-card">
       <div class="card-title">📋 模拟交易记录 <span class="sub">策略 vs 冲动</span></div>
       <button id="simStartBtn" class="sim-start">🚀 策略开仓（立即成交）</button>
+        <button id="hedgeStartBtn" class="sim-start hedge-start" title="双方向同开: 多腿止损=近10根5m低点/空腿=高点, 各1.5R止盈。震荡双杀是主要风险, 组合需约65%单组胜率才覆盖双杀亏损">🎭 对冲突破模式开仓（需要65%才能盈利）</button>
       <div id="simForm" class="sim-form hidden">
         <div class="sim-form-title">⚙️ 策略交易参数</div>
         <div class="impulse-btns" style="margin-bottom:6px">
@@ -147,10 +148,7 @@
       <div class="impulse-box">
         <div class="impulse-title">🔥 冲动开仓 <span class="sub">不等信号 · 立即成交</span> <span id="impulseScore" class="sub" style="margin-left:auto">得分: --</span></div>
         <div class="impulse-preview" id="impulsePreview"></div>
-        <div class="hedge-zone">
-          <button id="hedgeBtn" class="hedge-btn" title="独立模式: 双方向同开, 结构止损+1.5R止盈">🎭 对冲突破模式</button>
-          <span class="sub">独立模式 · 上面的做多/做空/策略开仓不受影响</span>
-        </div>
+
         <div class="impulse-btns">
           <button id="impulseLong" class="impulse-btn il">📈 立即做多</button>
           <button id="impulseShort" class="impulse-btn is">📉 立即做空</button>
@@ -251,6 +249,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260913102751"></script>
+  <script src="app.js?v=20260913133156"></script>
 </body>
 </html>

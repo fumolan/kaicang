@@ -1709,7 +1709,7 @@ function openImpulse(dir) {
 
 // ==================== 对冲突破(straddle): 双向同开+结构止损 ====================
 // 赌波动率扩张: 空间压缩时布双腿, 输腿小止损, 赢腿1.5R; 震荡双杀是主要风险
-$("hedgeBtn").addEventListener("click", () => {
+$("hedgeStartBtn").addEventListener("click", () => {
   if (price <= 0 || priceCoin !== coin || klines5m.length < 15) { alert("数据未就绪"); return; }
   const m = Math.max(10, +$("margin").value || 30);
   const lev = Math.min(125, Math.max(1, +$("lev").value || 10));

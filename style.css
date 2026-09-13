@@ -949,3 +949,6 @@ footer {
 .hedge-zone { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
 .hedge-btn { background: rgba(168,85,247,0.18); color: #c084fc; border: 1px solid rgba(168,85,247,0.5); border-radius: 8px; padding: 7px 16px; font-size: 12.5px; font-weight: 800; cursor: pointer; }
 .hedge-btn:hover { background: rgba(168,85,247,0.32); }
+
+.hedge-start { background: rgba(168,85,247,0.22); color: #c084fc; border: 1px solid rgba(168,85,247,0.55); margin-top: 6px; }
+.hedge-start:hover { background: rgba(168,85,247,0.38); }
