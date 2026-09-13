@@ -935,3 +935,12 @@ footer {
   font-weight: 700;
 }
 .sa-close:hover { background: rgba(36,178,140,0.1); }
+
+/* 精准交易计划 */
+.tp-box { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 6px 0 4px; background: rgba(42,50,66,0.18); }
+.tp-head { font-size: 12px; font-weight: 800; color: var(--accent); margin-bottom: 5px; }
+.tp-row { font-size: 11.5px; line-height: 1.7; }
+.tp-row.env { font-weight: 700; }
+.tp-row.wait { color: var(--muted); }
+.tp-row.note { color: var(--muted); font-size: 10.5px; border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 4px; }
+.tp-on { color: var(--down); font-weight: 700; }

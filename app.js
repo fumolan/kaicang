@@ -218,11 +218,75 @@ function renderAll(tickerMap) {
   renderMCChart();
   renderSignals(tickerMap);
   renderTrends();
+  fetchWindowsForCoin().then(renderTradePlan);
+  renderTradePlan();
   renderTrades();
   renderWalls();
   updateCalc();
   checkSimTrades();
   updateConfirmPrice();
+}
+
+
+// ==================== 精准交易计划 ====================
+// 信号给方向依据, 计划给精确价位: 环境(1h/4h同向) + 触发(破20根5m结构位) + 结构止损 + 1.5R止盈
+let win1h = null, win4h = null;   // 当前币滚动窗口涨幅
+async function fetchWindowsForCoin() {
+  if (!coin || priceCoin !== coin) return;
+  try {
+    const q = encodeURIComponent(JSON.stringify([coin]));
+    const [a, b] = await Promise.all([
+      apiGet(`/api/v3/ticker?symbols=${q}&windowSize=1h`).catch(() => null),
+      apiGet(`/api/v3/ticker?symbols=${q}&windowSize=4h`).catch(() => null),
+    ]);
+    win1h = a?.[0] ? (+a[0].priceChangePercent || 0) : null;
+    win4h = b?.[0] ? (+b[0].priceChangePercent || 0) : null;
+  } catch (e) { win1h = win4h = null; }
+}
+
+const pctS = (x) => (x >= 0 ? "+" : "") + x.toFixed(2) + "%";
+function renderTradePlan() {
+  const el = $("tradePlan");
+  if (!el) return;
+  if (!klines5m.length || win1h === null || price <= 0) {
+    el.innerHTML = "<span class='sub'>交易计划: 数据加载中…</span>";
+    return;
+  }
+  const done = klines5m.slice(0, -1);
+  const highs = done.map(k => +k[2]);
+  const lows = done.map(k => +k[3]);
+  const last = price;
+  const h20 = Math.max(...highs.slice(-20));
+  const l20 = Math.min(...lows.slice(-20));
+  const h10 = Math.max(...highs.slice(-10));
+  const l10 = Math.min(...lows.slice(-10));
+
+  const bullEnv = win1h > 0 && win4h > 0;
+  const bearEnv = win1h < 0 && win4h < 0;
+  const env = `1h ${pctS(win1h)} · 4h ${pctS(win4h)}`;
+  let html = `<div class="tp-head">🎯 精准交易计划 <span class="sub">${env}</span></div>`;
+
+  if (!bullEnv && !bearEnv) {
+    html += `<div class="tp-row wait">⚖️ 多空环境矛盾 — 不给方向, 观望(1h与4h需同向)</div>`;
+  } else if (bullEnv) {
+    const trigger = h20, stop = l10, risk = trigger - stop, target = trigger + risk * 1.5;
+    const entered = last > trigger;
+    html += `<div class="tp-row env">📈 多头环境(1h/4h同涨) → 只找做多机会</div>`;
+    html += `<div class="tp-row">触发买入: 突破 <b>${fmtP(trigger)}</b> (近20根5m高点) ${entered ? '<span class="tp-on">✓ 已站上(可进场/持有)</span>' : `… 当前${fmtP(last)} 等待`}</div>`;
+    html += `<div class="tp-row">止损: <b style="color:var(--up)">${fmtP(stop)}</b> (近10根5m低点, 破位即走)</div>`;
+    html += `<div class="tp-row">止盈: <b style="color:var(--down)">${fmtP(target)}</b> (1.5倍风险) · 盈亏比1.5:1</div>`;
+    if (entered) html += `<div class="tp-row">离场纪律: 跌回 ${fmtP(trigger * 0.997)} 之下 = 假突破, 平仓不恋战</div>`;
+  } else {
+    const trigger = l20, stop = h10, risk = stop - trigger, target = trigger - risk * 1.5;
+    const entered = last < trigger;
+    html += `<div class="tp-row env">📉 空头环境(1h/4h同跌) → 只找做空机会</div>`;
+    html += `<div class="tp-row">触发卖出: 跌破 <b>${fmtP(trigger)}</b> (近20根5m低点) ${entered ? '<span class="tp-on">✓ 已跌破(可进场/持有)</span>' : `… 当前${fmtP(last)} 等待`}</div>`;
+    html += `<div class="tp-row">止损: <b style="color:var(--up)">${fmtP(stop)}</b> (近10根5m高点)</div>`;
+    html += `<div class="tp-row">止盈: <b style="color:var(--down)">${fmtP(target)}</b> (1.5倍风险)</div>`;
+    if (entered) html += `<div class="tp-row">离场纪律: 收回 ${fmtP(trigger * 1.003)} 之上 = 假跌破, 平仓</div>`;
+  }
+  html += `<div class="tp-row note">仓位纪律: 单笔到止损的亏损≤保证金10%(3-5x杠杆或减半仓); 信号<50分时此计划不生效</div>`;
+  el.innerHTML = html;
 }
 
 // ==================== 主流币价格条 ====================
@@ -1374,6 +1438,11 @@ $("simConfirm").addEventListener("click", () => {
     alert(`已有 ${META[coin].sym} 的${simDirection === "long" ? "做多" : "做空"}策略仓在运行`);
     return;
   }
+  const preScore = getCurrentSignalScore(simDirection);
+  if (preScore < 50 && !confirm(`⚠️ 当前${simDirection === "long" ? "做多" : "做空"}信号仅 ${preScore}/100 分(阈值50)。
+低于50分开仓 = 单信号赌博, 历史期望为负。
+交易计划卡里有环境+触发价, 建议按计划执行。
+仍要强行开仓吗?`)) return;
   const isLong = simDirection === "long";
   const imr = 1 / lev, mmr = 0.005;
   list.push({
