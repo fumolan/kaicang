@@ -165,6 +165,10 @@ async function fetchAll() {
     tickers.forEach(t => tickerMap[t.symbol] = t);
     price = tickerMap[coin] ? parseFloat(tickerMap[coin].lastPrice) : 0;
     priceCoin = coin;
+    // OKX数据源: 当前价以OKX最新成交价为准(与用户在OKX看到的实时价一致, 币安价仅作兜底)
+    if (dataSource === "okx" && tr.length && +tr[0].p > 0) {
+      price = +tr[0].p;
+    }
     if (need1h) SYMBOLS.forEach((s, i) => { if (all1h[i]) klines1h[s] = all1h[i]; });
     trades = tr;
     depth = dep;
