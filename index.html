@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>赢时赚多 · 输时亏少 — Crypto Dashboard</title>
-  <link rel="stylesheet" href="style.css?v=20260913080756">
+  <link rel="stylesheet" href="style.css?v=20260913102144">
 </head>
 <body>
   <!-- 顶栏: 全局控制 -->
@@ -148,7 +148,8 @@
         <div class="impulse-title">🔥 冲动开仓 <span class="sub">不等信号 · 立即成交</span> <span id="impulseScore" class="sub" style="margin-left:auto">得分: --</span></div>
         <div class="impulse-preview" id="impulsePreview"></div>
         <div class="impulse-btns">
-          <button id="impulseLong" class="impulse-btn il">📈 立即做多</button>
+          <button id="hedgeBtn" class="impulse-btn" style="background:rgba(168,85,247,0.2);border-color:rgba(168,85,247,0.5)" title="双方向同开: 多腿止损=近10根5m低点, 空腿止损=近10根高点, 各1.5R止盈, 输腿小亏出局赢腿吃突破">🎭 对冲突破</button>
+        <button id="impulseLong" class="impulse-btn il">📈 立即做多</button>
           <button id="impulseShort" class="impulse-btn is">📉 立即做空</button>
         </div>
       </div>
@@ -247,6 +248,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260913095553"></script>
+  <script src="app.js?v=20260913102144"></script>
 </body>
 </html>

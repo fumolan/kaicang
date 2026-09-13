@@ -1711,6 +1711,47 @@ function openImpulse(dir) {
   fetchAll();   // 冲动开仓同样立即重载当前币种数据
 }
 
+
+// ==================== 对冲突破(straddle): 双向同开+结构止损 ====================
+// 赌波动率扩张: 空间压缩时布双腿, 输腿小止损, 赢腿1.5R; 震荡双杀是主要风险
+$("hedgeBtn").addEventListener("click", () => {
+  if (price <= 0 || priceCoin !== coin || klines5m.length < 15) { alert("数据未就绪"); return; }
+  const m = Math.max(10, +$("margin").value || 30);
+  const lev = Math.min(125, Math.max(1, +$("lev").value || 10));
+  const list = loadSim();
+  const done = klines5m.slice(0, -1);
+  const h10 = Math.max(...done.slice(-10).map(k => +k[2]));
+  const l10 = Math.min(...done.slice(-10).map(k => +k[3]));
+  const pid = Date.now();
+  const R = 1.5;
+  const mk = (dir) => {
+    const isLong = dir === "long";
+    const sl = isLong ? l10 : h10;                          // 结构止损
+    const risk = Math.abs(price - sl);
+    if (!(risk > 0)) return null;
+    const tp = isLong ? price + risk * R : price - risk * R; // 1.5R止盈
+    const tpPct = risk * R / price, slPct = risk / price;
+    return {
+      id: Date.now() + (isLong ? 1 : 2),
+      tradeType: "impulse", pairId: pid, pairTag: "🎭对冲",
+      direction: dir, coin, sym: META[coin].sym,
+      margin: m, leverage: lev,
+      scoreAtOpen: getCurrentSignalScore(dir),
+      status: "open", entryPrice: price, entryTime: Date.now(),
+      tpPct: +tpPct.toFixed(4), slPct: +slPct.toFixed(4),
+      tpPrice: tp, slPrice: sl,
+      liqPrice: isLong ? price * (1 - 1 / lev + 0.005) : price * (1 + 1 / lev - 0.005),
+      exitPrice: null, exitTime: null, pnl: null, roi: null,
+    };
+  };
+  const legs = [mk("long"), mk("short")].filter(Boolean);
+  if (legs.length < 2) { alert("结构位异常"); return; }
+  list.push(...legs);
+  saveSim(list);
+  checkSimTrades();
+  fetchAll();
+});
+
 $("impulseLong").addEventListener("click", () => openImpulse("long"));
 $("impulseShort").addEventListener("click", () => openImpulse("short"));
 
@@ -1732,6 +1773,19 @@ function renderSimHistory(list) {
   };
   const ss = stat(strat), si = stat(imp);
 
+  // 🎭对冲组合统计: 同pairId两腿都完结后算净结果
+  const pairs = {};
+  closed.forEach(t => { if (t.pairId) (pairs[t.pairId] = pairs[t.pairId] || []).push(t); });
+  const pairDone = Object.values(pairs).filter(a => a.length >= 2 && a.every(t => t.status !== "open"));
+  let pairHTML = "";
+  if (pairDone.length) {
+    const nets = pairDone.map(a => a.reduce((sm, t) => sm + (t.pnl || 0), 0));
+    const pWins = nets.filter(v => v > 0).length;
+    const pSum = nets.reduce((a, b) => a + b, 0);
+    pairHTML = `<div class="scmp-verdict" style="background:rgba(168,85,247,0.12);color:#c084fc">
+      🎭 对冲突破组合: ${pairDone.length}组完结 · 单组盈利${pWins}组(${(pWins / pairDone.length * 100).toFixed(0)}%) · 净${pSum >= 0 ? "+" : ""}$${pSum.toFixed(2)} · ${nets.filter(v => v < 0).length}组净亏</div>`;
+  }
+
   // 对比结论
   let verdictHTML = "";
   if (ss.n > 0 && si.n > 0) {
@@ -1742,7 +1796,7 @@ function renderSimHistory(list) {
     </div>`;
   }
 
-  $("simCompare").innerHTML = `
+  $("simCompare").innerHTML = pairHTML + `
     <div class="scmp-row">
       <span class="scmp-label strategy">📊 策略</span>
       <span class="scmp-detail">${ss.n}笔 · 胜率${ss.wr}%</span>
@@ -1772,7 +1826,7 @@ function renderHistRow(t) {
       const resMapH = { win: "✅止盈", loss: "❌止损", liquidated: "💥爆仓", timeout: "⏰超时", manual: "💰手动平仓" };
       return `<div class="sim-h-row"${t.tradeType === "impulse" ? ' style="background:rgba(229,69,69,0.04)"' : ""}>
         <span class="sh-time">${fmtTH(t.entryTime)}</span>
-        <span class="sh-sym">${t.direction === "long" ? "↑" : "↓"}${typeTag}</span>
+        <span class="sh-sym">${t.direction === "long" ? "↑" : "↓"}${typeTag}${t.pairTag ? ' <span style="color:#a855f7">🎭</span>' : ""}</span>
         <span class="sh-detail">${fmtP(t.entryPrice)}→${fmtP(t.exitPrice)} ${t.margin}U×${t.leverage}x${t.scoreAtOpen !== undefined ? ` (${t.scoreAtOpen}分)` : ""}</span>
         <span class="sh-result ${pos ? "pos" : "neg"}" style="color:${pos ? "var(--down)" : "var(--up)"}">${resMapH[t.status]}</span>
         <span class="sh-pnl ${pos ? "pos" : "neg"}">${pos ? "+" : ""}$${t.pnl.toFixed(2)}</span>
