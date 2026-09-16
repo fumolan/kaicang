@@ -93,3 +93,11 @@ body { background:var(--bg); color:var(--text); font:13px/1.5 -apple-system,"Pin
 .bt-rec-detail { flex:1; color:var(--muted); }
 
 .bt-footer { text-align:center; font-size:10px; color:var(--muted); padding:8px; border-top:1px solid var(--border); }
+
+/* 品种卡片条 */
+.bt-inst-strip { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0; max-width: 560px; }
+.bt-ic { flex-shrink: 0; min-width: 82px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; cursor: pointer; text-align: center; transition: border-color .15s; }
+.bt-ic:hover { border-color: var(--accent); }
+.bt-ic.active { border-color: var(--accent); background: rgba(240,185,11,0.1); }
+.bt-ic-label { font-size: 13px; font-weight: 700; }
+.bt-ic-sub { font-size: 9.5px; color: var(--muted); }

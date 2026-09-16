@@ -38,9 +38,10 @@ let optionList = [];  // 期权链
 
 async function loadInstruments() {
   try {
+    let items = [];
     if (productType === "SPOT" || productType === "SWAP") {
       const type = productType === "SPOT" ? "" : "-SWAP";
-      B$("btInst").innerHTML = COINS.map(c => `<option value="${c}-USDT${type}">${c}-USDT${type}</option>`).join("");
+      items = COINS.map(c => ({ id: `${c}-USDT${type}`, label: c, sub: productType === "SPOT" ? "现货" : "永续" }));
     } else if (productType === "FUTURES") {
       if (!futureList.length) {
         const list = await okx("/public/instruments?instType=FUTURES&instFamily=BTC-USD");
@@ -48,8 +49,7 @@ async function loadInstruments() {
           id: x.instId, alias: x.alias, exp: new Date(+x.expTime).toLocaleDateString("zh-CN", {month:"short",day:"numeric"})
         }));
       }
-      B$("btInst").innerHTML = futureList.map(f =>
-        `<option value="${f.id}">${f.id} (${f.alias === "this_month" ? "当月" : f.alias === "next_month" ? "次月" : f.alias === "quarter" ? "当季" : f.alias === "next_quarter" ? "次季" : f.alias})</option>`).join("");
+      items = futureList.map(f => ({ id: f.id, label: f.id.replace("BTC-USD-",""), sub: f.alias === "this_month" ? "当月" : f.alias === "next_month" ? "次月" : f.alias === "quarter" ? "当季" : f.alias === "next_quarter" ? "次季" : f.alias }));
     } else if (productType === "OPTION") {
       if (!optionList.length) {
         // 取最近到期的BTC看涨期权 (ATM附近)
@@ -69,15 +69,29 @@ async function loadInstruments() {
           optionList = atm.map(x => ({ id: x.instId, strike: x.stk, exp: new Date(+x.expTime).toLocaleDateString("zh-CN",{month:"short",day:"numeric"}) }));
         }
       }
-      B$("btInst").innerHTML = optionList.length
-        ? optionList.map(o => `<option value="${o.id}">BTC ${o.strike}C (${o.exp})</option>`).join("")
-        : "<option>加载中...</option>";
+      items = optionList.map(o => ({ id: o.id, label: `${o.strike}C`, sub: o.exp }));
     }
-    curInst = B$("btInst").value;
+    // 渲染卡片条
+    renderInstCards(items);
+    curInst = items[0]?.id || "";
     if (curInst) onInstrumentChange();
+    renderInstCards(items);
   } catch (e) {
-    B$("btInst").innerHTML = `<option>加载失败: ${e.message.slice(0, 30)}</option>`;
+    renderInstCards([{ id: "", label: "加载失败", sub: e.message.slice(0, 20) }]);
   }
+}
+
+function renderInstCards(items) {
+  B$("btInstStrip").innerHTML = items.map(it => `
+    <div class="bt-ic${it.id === curInst ? " active" : ""}" data-inst="${it.id}">
+      <div class="bt-ic-label">${it.label}</div>
+      <div class="bt-ic-sub">${it.sub || ""}</div>
+    </div>`).join("");
+  B$("btInstStrip").querySelectorAll(".bt-ic").forEach(el =>
+    el.addEventListener("click", () => {
+      curInst = el.dataset.inst;
+      if (curInst) onInstrumentChange();
+    }));
 }
 
 // ---- 自动开仓 ----
@@ -105,6 +119,9 @@ function autoOpen() {
 }
 
 function onInstrumentChange() {
+  // 更新卡片高亮
+  document.querySelectorAll(".bt-ic").forEach(el =>
+    el.classList.toggle("active", el.dataset.inst === curInst));
   // 切换品种 → 重置并自动开仓
   candles = []; trades = []; priceHistory = [];
   longPos = shortPos = null;
@@ -326,7 +343,6 @@ document.querySelectorAll(".bt-tab").forEach(btn =>
     futureList = []; optionList = [];  // 重置缓存
     loadInstruments();
   }));
-B$("btInst").addEventListener("change", () => { curInst = B$("btInst").value; onInstrumentChange(); });
 
 // ---- 定时刷新 ----
 function startTimer() {
