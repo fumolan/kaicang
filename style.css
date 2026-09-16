@@ -970,3 +970,6 @@ footer {
 .hot-table tr.rrow { cursor: pointer; }
 .hot-table tr.rrow:hover { background: rgba(240,185,11,0.07); }
 .hot-table td.bdiff-hi { font-weight: 700; }
+
+.battle-link { display:inline-block; padding:4px 12px; background:rgba(168,85,247,0.2); color:#c084fc; border:1px solid rgba(168,85,247,0.5); border-radius:6px; font-size:12px; font-weight:800; text-decoration:none; margin-left:8px; }
+.battle-link:hover { background:rgba(168,85,247,0.35); }
