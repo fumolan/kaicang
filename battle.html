@@ -3,96 +3,103 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="实战OKX — 现货/永续/交割/期权四品种模拟, 双向自动开仓100U×10x, 直观感受资金流失速度">
   <title>⚔️ 实战OKX · 资金流失体验</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
-  <link rel="stylesheet" href="battle.css?v=20260916220541">
+  <link rel="stylesheet" href="battle.css?v=20260916221449">
 </head>
 <body>
   <header class="bt-topbar">
-    <div class="bt-logo">⚔️ 实战OKX</div>
-    <div class="bt-motto">感受资金流失速度 · 100U×10x</div>
+    <div class="bt-logo">⚔️ 实战</div>
     <nav class="bt-tabs">
       <button class="bt-tab active" data-pt="SPOT">现货</button>
       <button class="bt-tab" data-pt="SWAP">永续</button>
       <button class="bt-tab" data-pt="FUTURES">交割</button>
       <button class="bt-tab" data-pt="OPTION">期权</button>
     </nav>
-    <div class="bt-inst-strip" id="btInstStrip"></div>
-    <span class="bt-status"><span class="bt-dot" id="btDot"></span><span id="btLast">--:--:--</span></span>
-    <a class="bt-back" href="index.html">← 返回开仓</a>
+    <span class="bt-status"><span class="bt-dot" id="btDot"></span><span id="btLast">--</span></span>
+    <a class="bt-back" href="index.html">← 开仓</a>
   </header>
+
+  <!-- 币种条(和开仓主页同款, 支持?coin=入参) -->
+  <div class="coin-strip" id="btCoinStrip"><span class="bt-loading">加载中…</span></div>
 
   <main class="bt-main">
     <!-- 左: 做多 -->
-    <aside class="bt-side bt-long" id="btLongSide">
-      <div class="bt-side-head">📈 做多 <span class="bt-tag">100U × 10x</span></div>
-      <div class="bt-entry" id="btLongEntry">等待开仓</div>
+    <aside class="bt-side bt-long">
+      <div class="bt-side-head">📈 做多 <span class="bt-tag">100U×10x</span></div>
+      <div class="bt-entry" id="btLongEntry">等待</div>
       <div class="bt-pnl" id="btLongPnl">$0.00</div>
-      <div class="bt-speed" id="btLongSpeed">-- /分钟</div>
-      <div class="bt-fundbar-wrap">
-        <div class="bt-fundbar" id="btLongBar"><div class="bt-fundbar-fill" id="btLongFill"></div></div>
-        <div class="bt-fundbar-label" id="btLongLabel">$100.00 / 100%</div>
-      </div>
+      <div class="bt-speed" id="btLongSpeed">--</div>
+      <div class="bt-fundbar"><div class="bt-fundbar-fill" id="btLongFill"></div></div>
+      <div class="bt-fundbar-label" id="btLongLabel">$100.00</div>
       <div class="bt-detail" id="btLongDetail"></div>
     </aside>
 
-    <!-- 中 -->
+    <!-- 中: 两张图(和开仓主页同款) -->
     <section class="bt-center">
-      <div class="bt-chart-card">
-        <div class="bt-card-title">📊 1小时K线 <span class="bt-sub" id="btChartNote"></span></div>
-        <div id="btChart" class="bt-chart"><span class="bt-loading">选择品种开始</span></div>
+      <div class="card chart-card">
+        <div class="card-title">📈 价格走势 <span class="bt-sub">4小时 · 5分钟</span>
+          <button class="bt-xray" id="btXrayPrice" title="透视">🔍</button>
+        </div>
+        <div id="btPriceChart" class="chart-area"><span class="bt-loading">等待品种</span></div>
+        <div class="chart-info" id="btPriceInfo"></div>
       </div>
-      <div class="bt-vol-card">
-        <div class="bt-card-title">📋 逐笔成交 <span class="bt-sub" id="btVolNote"></span></div>
-        <div id="btTrades" class="bt-trades"><span class="bt-loading">等待数据</span></div>
-        <div id="btVolStats" class="bt-volstats"></div>
+      <div class="card chart-card">
+        <div class="card-title">📊 成交量 · 主动买占比 <span class="bt-sub">4小时</span>
+          <button class="bt-xray" id="btXrayVol" title="透视">🔍</button>
+        </div>
+        <div id="btVolChart" class="chart-area"><span class="bt-loading">等待品种</span></div>
+        <div class="chart-info" id="btVolInfo"></div>
       </div>
     </section>
 
     <!-- 右: 做空 -->
-    <aside class="bt-side bt-short" id="btShortSide">
-      <div class="bt-side-head">📉 做空 <span class="bt-tag">100U × 10x</span></div>
-      <div class="bt-entry" id="btShortEntry">等待开仓</div>
+    <aside class="bt-side bt-short">
+      <div class="bt-side-head">📉 做空 <span class="bt-tag">100U×10x</span></div>
+      <div class="bt-entry" id="btShortEntry">等待</div>
       <div class="bt-pnl" id="btShortPnl">$0.00</div>
-      <div class="bt-speed" id="btShortSpeed">-- /分钟</div>
-      <div class="bt-fundbar-wrap">
-        <div class="bt-fundbar" id="btShortBar"><div class="bt-fundbar-fill short" id="btShortFill"></div></div>
-        <div class="bt-fundbar-label" id="btShortLabel">$100.00 / 100%</div>
-      </div>
+      <div class="bt-speed" id="btShortSpeed">--</div>
+      <div class="bt-fundbar"><div class="bt-fundbar-fill short" id="btShortFill"></div></div>
+      <div class="bt-fundbar-label" id="btShortLabel">$100.00</div>
       <div class="bt-detail" id="btShortDetail"></div>
     </aside>
   </main>
 
-  <!-- 底部: 总资金条 -->
+  <!-- 总资金条 -->
   <div class="bt-total-funds">
-    <div class="bt-total-label">💰 总资金 (做多+做空)</div>
+    <span class="bt-total-label">💰 总资金</span>
     <div class="bt-total-bar"><div class="bt-total-fill" id="btTotalFill"></div></div>
-    <div class="bt-total-val" id="btTotalVal">$200.00</div>
+    <span class="bt-total-val" id="btTotalVal">$200.00</span>
   </div>
 
-  <!-- 底部: 手动操作 -->
-  <div class="bt-controls">
+  <!-- 手动+记录 -->
+  <div class="bt-bottom">
     <div class="bt-manual">
       <button class="bt-btn bt-btn-long" id="btManualLong">📈 手动做多</button>
-      <input type="number" id="btManualAmount" value="100" min="10" title="保证金(U)" class="bt-input">
-      <span class="bt-x">×</span>
-      <input type="number" id="btManualLev" value="10" min="1" max="125" title="杠杆" class="bt-input bt-lev">
-      <span class="bt-x">x</span>
+      <input type="number" id="btManualAmount" value="100" min="10" class="bt-input" title="保证金(U)">
+      <span>×</span>
+      <input type="number" id="btManualLev" value="10" min="1" max="125" class="bt-input bt-lev" title="杠杆">
+      <span>x</span>
       <button class="bt-btn bt-btn-short" id="btManualShort">📉 手动做空</button>
+    </div>
+    <div class="bt-records">
+      <div id="btRecordList"><span class="bt-loading">暂无记录</span></div>
     </div>
   </div>
 
-  <!-- 底部: 记录 -->
-  <div class="bt-records">
-    <div class="bt-card-title">📜 交易记录</div>
-    <div id="btRecordList" class="bt-record-list"><span class="bt-loading">暂无记录</span></div>
+  <!-- 透视弹框(简化版: 大单列表) -->
+  <div class="bt-xray-overlay hidden" id="btXrayOverlay">
+    <div class="bt-xray-modal">
+      <div class="bt-xray-head">
+        <span>🔍 透视 <span id="btXrayTitle" class="bt-sub"></span></span>
+        <button class="bt-xray-close" id="btXrayClose">&times;</button>
+      </div>
+      <div class="bt-xray-body">
+        <div id="btXrayTrades" class="bt-xray-trades"><span class="bt-loading">加载中…</span></div>
+      </div>
+    </div>
   </div>
 
-  <footer class="bt-footer">
-    OKX实时数据 · 双向自动开仓100U×10x · 切换品种即自动重新开仓 · 交易记录存本地浏览器
-  </footer>
-
-  <script src="battle.js?v=20260916220541"></script>
+  <script src="battle.js?v=20260916221449"></script>
 </body>
 </html>

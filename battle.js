@@ -1,385 +1,326 @@
-// ⚔️ 实战OKX — 双向自动开仓 + 资金流失速度体验
+// ⚔️ 实战OKX — 开仓风格图表 + 双向自动开仓 + 资金流失速度
 const B$ = (id) => document.getElementById(id);
 const OKX = "https://www.okx.com/api/v5";
-
-// ---- 状态 ----
-let productType = "SPOT";     // SPOT | SWAP | FUTURES | OPTION
-let curInst = "";             // 当前品种 instId
-let curPrice = 0;
-let longPos = null, shortPos = null;
-let priceHistory = [];        // [{ts, price}] 用于计算亏损速度
-let candles = [], trades = [];
-let timer = null, tickTimer = null;
-let records = [];
+const BN = "https://data-api.binance.vision";
 const RECORD_KEY = "battle_records_v1";
+let usingFallback = false;
+
+// ---- 币池(和开仓主页一致, 支持URL入参扩展) ----
+let COINS = [
+  { sym: "BTC", name: "比特币" }, { sym: "ETH", name: "以太坊" },
+  { sym: "SOL", name: "" }, { sym: "XRP", name: "瑞波币" },
+  { sym: "DOGE", name: "狗狗币" }, { sym: "LSK", name: "" },
+];
+let curCoin = "BTC";
+let productType = "SPOT";
+let curPrice = 0;
+let k5 = [];          // 5分钟K线(49根=4小时)
+let aggTrades = [];   // 大单成交
+let longPos = null, shortPos = null;
+let priceHistory = [];
+let records = [];
 
 // ---- 工具 ----
 const fmtP = (p) => p >= 1000 ? p.toLocaleString("en-US",{maximumFractionDigits:1})
   : p >= 1 ? (+p).toFixed(3) : (+p).toPrecision(5);
-const fmtU = (v) => (v >= 0 ? "+" : "") + "$" + Math.abs(v).toFixed(2);
+// 关键修改: 负数带负号
+const fmtU = (v) => (v >= 0 ? "+$" : "-$") + Math.abs(v).toFixed(2);
 const clsPnL = (v) => v >= 0 ? "bt-green" : "bt-red";
+const pctS = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 
-let usingFallback = false;   // OKX不通时用币安兜底
-const BN = "https://data-api.binance.vision";
-
-async function okx(path, timeout = 4000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeout);
+// ---- 数据获取(OKX优先→币安兜底) ----
+async function fetchKlines(sym) {
+  const instId = sym + "-USDT";
   try {
-    const r = await fetch(OKX + path, { signal: ctrl.signal });
-    clearTimeout(t);
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 4000);
+    const r = await fetch(`${OKX}/market/candles?instId=${instId}&bar=5m&limit=49`, { signal: ctrl.signal });
     const d = await r.json();
-    if (d.code !== "0") throw new Error(d.msg || "OKX " + d.code);
-    usingFallback = false;
-    return d.data;
-  } catch (e) {
-    clearTimeout(t);
-    // OKX不通 → 币安兜底(国内直连)
-    return await binanceFallback(path);
-  }
-}
-
-// 币安兜底: 用现货数据近似(价格差<0.1%, 对体验资金流失速度足够)
-async function binanceFallback(okxPath) {
-  usingFallback = true;
-  // 提取币种: instId=BTC-USDT 或 BTC-USDT-SWAP 等
-  const instMatch = okxPath.match(/instId=([A-Z0-9-]+)/);
-  const base = instMatch ? instMatch[1].split("-")[0] : "BTC";
-  const sym = base + "USDT";
-  if (okxPath.includes("/market/ticker")) {
-    const r = await fetch(BN + "/api/v3/ticker/price?symbol=" + sym, { signal: AbortSignal.timeout(6000) });
-    const d = await r.json();
-    return [{ instId: instMatch?.[1] || sym, last: d.price, ts: String(Date.now()) }];
-  }
-  if (okxPath.includes("/market/candles") || okxPath.includes("candles")) {
-    const r = await fetch(BN + "/api/v3/klines?symbol=" + sym + "&interval=1h&limit=120", { signal: AbortSignal.timeout(8000) });
-    const d = await r.json();
-    // 币安格式: [openTime, o, h, l, c, vol, closeTime, ...] 旧→新
-    return d.map(k => [String(k[0]), String(k[1]), String(k[2]), String(k[3]), String(k[4]), String(k[5]), "0", "0", true]);
-  }
-  if (okxPath.includes("/market/trades")) {
-    const r = await fetch(BN + "/api/v3/aggTrades?symbol=" + sym + "&limit=20", { signal: AbortSignal.timeout(6000) });
-    const d = await r.json();
-    // 币安: m=true=卖方主动, side= sell; m=false=买方主动
-    return d.map((t, i) => ({ instId: sym, tradeId: String(t.a), px: String(t.p), sz: String(t.q), side: t.m ? "sell" : "buy", ts: String(t.T) }));
-  }
-  // 交割/期权的公开合约信息 → 返回空(品种列表用硬编码兜底)
-  return [];
-}
-
-// ---- 品种列表 ----
-const COINS = ["BTC", "ETH", "SOL", "XRP", "DOGE"];
-let futureList = [];  // 交割合约
-let optionList = [];  // 期权链
-
-async function loadInstruments() {
-  try {
-    let items = [];
-    if (productType === "SPOT" || productType === "SWAP") {
-      const type = productType === "SPOT" ? "" : "-SWAP";
-      items = COINS.map(c => ({ id: `${c}-USDT${type}`, label: c, sub: productType === "SPOT" ? "现货" : "永续" }));
-    } else if (productType === "FUTURES") {
-      if (!futureList.length) {
-        let list = [];
-        try { list = await okx("/public/instruments?instType=FUTURES&instFamily=BTC-USD"); } catch(e) {}
-        if (!list.length && usingFallback) {
-          // 币安兜底: 硬编码BTC交割合约(2026下半年)
-          list = [
-            { instId: "BTC-USD-260925", alias: "this_month", expTime: String(new Date("2026-09-25").getTime()), state: "live" },
-            { instId: "BTC-USD-261030", alias: "next_month", expTime: String(new Date("2026-10-30").getTime()), state: "live" },
-            { instId: "BTC-USD-261225", alias: "quarter", expTime: String(new Date("2026-12-25").getTime()), state: "live" },
-            { instId: "BTC-USD-270326", alias: "next_quarter", expTime: String(new Date("2027-03-26").getTime()), state: "live" },
-          ];
-        }
-        futureList = list.filter(x => x.state === "live").map(x => ({
-          id: x.instId, alias: x.alias, exp: new Date(+x.expTime).toLocaleDateString("zh-CN", {month:"short",day:"numeric"})
-        }));
-      }
-      items = futureList.map(f => ({ id: f.id, label: f.id.replace("BTC-USD-",""), sub: f.alias === "this_month" ? "当月" : f.alias === "next_month" ? "次月" : f.alias === "quarter" ? "当季" : f.alias === "next_quarter" ? "次季" : f.alias }));
-    } else if (productType === "OPTION") {
-      if (!optionList.length) {
-        // 取最近到期的BTC看涨期权 (ATM附近)
-        const list = await okx("/public/instruments?instType=OPTION&instFamily=BTC-USD");
-        const live = list.filter(x => x.state === "live");
-        if (live.length) {
-          // 找最近到期
-          const sorted = [...live].sort((a, b) => +a.expTime - +a.expTime);
-          const nearest = sorted[0].expTime;
-          const nearList = live.filter(x => x.expTime === nearest && x.optType === "C");
-          // 取BTC现价附近strike
-          const ticker = await okx("/market/ticker?instId=BTC-USDT");
-          const btc = +ticker[0].last;
-          const atm = nearList.filter(x => Math.abs(+x.stk - btc) / btc < 0.15)
-            .sort((a, b) => +a.stk - +b.stk)
-            .slice(0, 7);
-          optionList = atm.map(x => ({ id: x.instId, strike: x.stk, exp: new Date(+x.expTime).toLocaleDateString("zh-CN",{month:"short",day:"numeric"}) }));
-        }
-      }
-      items = optionList.map(o => ({ id: o.id, label: `${o.strike}C`, sub: o.exp }));
+    if (d.code === "0" && d.data?.length) {
+      usingFallback = false;
+      return d.data.map(k => ({ ts: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], tb: +k[5] / 2 })).reverse();
     }
-    // 渲染卡片条
-    renderInstCards(items);
-    curInst = items[0]?.id || "";
-    if (curInst) onInstrumentChange();
-    renderInstCards(items);
+    throw new Error("empty");
   } catch (e) {
-    renderInstCards([{ id: "", label: "加载失败", sub: e.message.slice(0, 20) }]);
+    usingFallback = true;
+    const r = await fetch(`${BN}/api/v3/klines?symbol=${sym}USDT&interval=5m&limit=49`, { signal: AbortSignal.timeout(8000) });
+    const d = await r.json();
+    return d.map(k => ({ ts: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], tb: +k[10] || +k[5] / 2 }));
   }
 }
 
-function renderInstCards(items) {
-  B$("btInstStrip").innerHTML = items.map(it => `
-    <div class="bt-ic${it.id === curInst ? " active" : ""}" data-inst="${it.id}">
-      <div class="bt-ic-label">${it.label}</div>
-      <div class="bt-ic-sub">${it.sub || ""}</div>
-    </div>`).join("");
-  B$("btInstStrip").querySelectorAll(".bt-ic").forEach(el =>
+async function fetchPrice(sym) {
+  try {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 4000);
+    const r = await fetch(`${OKX}/market/ticker?instId=${sym}-USDT`, { signal: ctrl.signal });
+    const d = await r.json();
+    if (d.code === "0" && d.data?.[0]) {
+      usingFallback = false;
+      curPrice = +d.data[0].last;
+    } else throw new Error("empty");
+  } catch (e) {
+    usingFallback = true;
+    const r = await fetch(`${BN}/api/v3/ticker/price?symbol=${sym}USDT`, { signal: AbortSignal.timeout(6000) });
+    const d = await r.json();
+    curPrice = +d.price;
+  }
+  priceHistory.push({ ts: Date.now(), price: curPrice });
+  if (priceHistory.length > 600) priceHistory.shift();
+  B$("btDot").className = "bt-dot bt-ok";
+  B$("btLast").textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false })
+    + (usingFallback ? " 币安" : " OKX");
+}
+
+async function fetchTrades(sym) {
+  try {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 4000);
+    const r = await fetch(`${OKX}/market/trades?instId=${sym}-USDT&limit=100`, { signal: ctrl.signal });
+    const d = await r.json();
+    if (d.code === "0") {
+      return d.data.map(t => ({ p: +t.px, q: +t.sz, buy: t.side === "buy", ts: +t.ts }));
+    }
+    throw new Error("empty");
+  } catch (e) {
+    const r = await fetch(`${BN}/api/v3/aggTrades?symbol=${sym}USDT&limit=500`, { signal: AbortSignal.timeout(8000) });
+    const d = await r.json();
+    return d.map(t => ({ p: +t.p, q: +t.q, buy: t.m === false, ts: +t.T }));
+  }
+}
+
+// ---- 币种条(和开仓主页同款) ----
+async function renderCoinStrip() {
+  const strip = B$("btCoinStrip");
+  const prices = await Promise.all(COINS.map(c =>
+    fetch(`${BN}/api/v3/ticker/24hr?symbol=${c.sym}USDT`, { signal: AbortSignal.timeout(6000) })
+      .then(r => r.json()).catch(() => null)));
+  strip.innerHTML = COINS.map((c, i) => {
+    const t = prices[i];
+    const p = t ? +t.lastPrice : 0;
+    const chg = t ? +t.priceChangePercent : 0;
+    const cls = chg >= 0 ? "up" : "down";
+    return `<div class="cc-chip${c.sym === curCoin ? " active" : ""}" data-sym="${c.sym}">
+      <div class="cc-sym">${c.sym}${c.name ? ` <span style="color:var(--muted);font-size:10px">${c.name}</span>` : ""}</div>
+      <div class="cc-price">${p ? fmtP(p) : "--"}</div>
+      <div class="cc-chg ${cls}">${pctS(chg)}</div>
+    </div>`;
+  }).join("");
+  strip.querySelectorAll(".cc-chip").forEach(el =>
     el.addEventListener("click", () => {
-      curInst = el.dataset.inst;
-      if (curInst) onInstrumentChange();
+      curCoin = el.dataset.sym;
+      onCoinChange();
     }));
+}
+
+// ---- 价格走势图(和开仓主页同款SVG) ----
+function renderPriceChart() {
+  if (!k5.length) return;
+  const done = k5.slice(0, -1);
+  const closes = done.map(k => k.c);
+  const W = 420, H = 150, PL = 55, PR = 8, PT = 8, PB = 18;
+  const cw = W - PL - PR, chh = H - PT - PB;
+  const minP = Math.min(...closes), maxP = Math.max(...closes);
+  const range = maxP - minP || 1;
+  const x = i => PL + i / (closes.length - 1) * cw;
+  const y = p => PT + (1 - (p - minP) / range) * chh;
+  const chg = closes[closes.length - 1] / closes[0] - 1;
+  const lc = chg >= 0 ? "#e54545" : "#24b28c";
+  const pts = closes.map((c, i) => `${x(i).toFixed(1)},${y(c).toFixed(1)}`).join(" ");
+  // 统计线
+  const avg = closes.reduce((s, v) => s + v, 0) / closes.length;
+  const sorted = [...closes].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const modeMap = {};
+  closes.forEach(c => { const k = c.toFixed(4); modeMap[k] = (modeMap[k] || 0) + 1; });
+  const modeCount = Math.max(...Object.values(modeMap));
+  const mode = modeCount > 3 ? +Object.keys(modeMap).find(k => modeMap[k] === modeCount) : null;
+  let statLines = "";
+  if (avg >= minP && avg <= maxP) statLines += `<line x1="${PL}" y1="${y(avg)}" x2="${W-PR}" y2="${y(avg)}" stroke="#a855f7" stroke-width="0.8" stroke-dasharray="6,3" opacity="0.7"/><text x="${PL+2}" y="${y(avg)-2}" font-size="7.5" fill="#a855f7">均${fmtP(avg)}</text>`;
+  if (median >= minP && median <= maxP) statLines += `<line x1="${PL}" y1="${y(median)}" x2="${W-PR}" y2="${y(median)}" stroke="#f0b90b" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.6"/><text x="${PL+2}" y="${y(median)-2}" font-size="7.5" fill="#f0b90b">中${fmtP(median)}</text>`;
+  if (mode && mode >= minP && mode <= maxP && modeCount > 3) statLines += `<line x1="${PL}" y1="${y(mode)}" x2="${W-PR}" y2="${y(mode)}" stroke="#24b28c" stroke-width="0.8" stroke-dasharray="1,3" opacity="0.6"/><text x="${PL+2}" y="${y(mode)-2}" font-size="7.5" fill="#24b28c">众${fmtP(mode)}×${modeCount}</text>`;
+
+  B$("btPriceChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}">
+    <polygon points="${PL},${H-PB} ${pts} ${x(closes.length-1)},${H-PB}" fill="${lc}" opacity="0.08"/>
+    <polyline points="${pts}" fill="none" stroke="${lc}" stroke-width="1.5"/>
+    ${statLines}
+    <circle cx="${x(closes.length-1)}" cy="${y(curPrice || closes[closes.length-1])}" r="2.5" fill="${lc}"/>
+    <text x="${W-PR}" y="13" text-anchor="end" font-size="10" fill="${lc}" font-weight="700">${pctS(chg*100)}</text>
+    <text x="${PL}" y="${H-6}" font-size="8" fill="#7a8299">${new Date(done[0].ts).toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"})}</text>
+    <text x="${W-PR}" y="${H-6}" text-anchor="end" font-size="8" fill="#7a8299">${new Date(done[done.length-1].ts).toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"})}</text>
+  </svg>`;
+  B$("btPriceInfo").innerHTML = `现价 <b>${fmtP(curPrice)}</b> · 均${fmtP(avg)} 中${fmtP(median)}${mode ? ` 众${fmtP(mode)}×${modeCount}` : ""} · ${pctS(chg * 100)}`;
+}
+
+// ---- 成交量·主动买占比图 ----
+function renderVolChart() {
+  if (!k5.length) return;
+  const done = k5.slice(0, -1);
+  const W = 420, H = 110, PL = 8, PR = 8, PT = 15, PB = 18;
+  const cw = W - PL - PR, chh = H - PT - PB;
+  const totalVols = done.map(k => k.v);
+  const maxV = Math.max(...totalVols) || 1;
+  const barW = cw / done.length * 0.7;
+  let bars = "";
+  done.forEach((k, i) => {
+    const h = k.v / maxV * chh;
+    const x = PL + i / done.length * cw;
+    const ratio = k.tb / k.v;
+    const buyH = h * ratio, sellH = h * (1 - ratio);
+    bars += `<rect x="${x}" y="${PT + chh - buyH}" width="${barW}" height="${buyH}" fill="#e54545" opacity="0.75" rx="1"/>`;
+    bars += `<rect x="${x}" y="${PT + chh - buyH - sellH}" width="${barW}" height="${sellH}" fill="#24b28c" opacity="0.6" rx="1"/>`;
+  });
+  // 买占比折线
+  const ratios = done.map(k => k.tb / k.v);
+  const rY = r => PT + (1 - r) * chh;
+  const rPts = ratios.map((r, i) => `${(PL + i / done.length * cw + barW / 2).toFixed(1)},${rY(r).toFixed(1)}`).join(" ");
+  const avgRatio = ratios.reduce((s, v) => s + v, 0) / ratios.length;
+  B$("btVolChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}">
+    <line x1="${PL}" y1="${rY(avgRatio)}" x2="${W-PR}" y2="${rY(avgRatio)}" stroke="#f0b90b" stroke-width="0.8" stroke-dasharray="4,3" opacity="0.7"/>
+    <text x="${W-PR}" y="${rY(avgRatio)-2}" text-anchor="end" font-size="8" fill="#f0b90b">均${(avgRatio*100).toFixed(0)}%</text>
+    ${bars}
+    <polyline points="${rPts}" fill="none" stroke="#f0b90b" stroke-width="1.2" opacity="0.9"/>
+    <text x="${W-PR}" y="11" text-anchor="end" font-size="9" fill="${avgRatio > 0.5 ? "#e54545" : "#24b28c"}" font-weight="700">买占比${(avgRatio*100).toFixed(1)}%</text>
+  </svg>`;
+  const totalBuy = done.reduce((s, k) => s + k.tb, 0);
+  const totalV = done.reduce((s, k) => s + k.v, 0);
+  B$("btVolInfo").innerHTML = `4h主动买占比 <b style="color:${totalBuy / totalV > 0.5 ? "var(--up)" : "var(--down)"}">${(totalBuy / totalV * 100).toFixed(1)}%</b> · 买占比>55%为买方主导`;
 }
 
 // ---- 自动开仓 ----
 function autoOpen() {
-  if (!curInst || curPrice <= 0) return;
-  const MARGIN = 100, LEV = 10;
-  const isOption = productType === "OPTION";
-  const now = Date.now();
-  // 现货做多: 买入等值币; 做空/合约: 模拟合约
-  longPos = {
-    dir: "long", margin: MARGIN, lev: LEV,
-    entry: curPrice, entryTime: now,
-    qty: isOption ? MARGIN * LEV / curPrice : MARGIN * LEV / curPrice,
-    pnl: 0, pnlPct: 0,
-  };
-  shortPos = {
-    dir: "short", margin: MARGIN, lev: LEV,
-    entry: curPrice, entryTime: now,
-    qty: MARGIN * LEV / curPrice,
-    pnl: 0, pnlPct: 0,
-  };
+  if (curPrice <= 0) return;
+  const M = 100, L = 10, now = Date.now();
+  longPos = { dir: "long", margin: M, lev: L, entry: curPrice, entryTime: now, qty: M * L / curPrice, pnl: 0, speed: 0 };
+  shortPos = { dir: "short", margin: M, lev: L, entry: curPrice, entryTime: now, qty: M * L / curPrice, pnl: 0, speed: 0 };
   priceHistory = [{ ts: now, price: curPrice }];
+  addRecord("🔄", `${curCoin}/USDT`, `多空各${M}U×${L}x @${fmtP(curPrice)}`);
   renderPositions();
-  addRecord("🔄 自动开仓", curInst, `多空各${MARGIN}U×${LEV}x @${fmtP(curPrice)}`);
 }
 
-function onInstrumentChange() {
-  // 更新卡片高亮
-  document.querySelectorAll(".bt-ic").forEach(el =>
-    el.classList.toggle("active", el.dataset.inst === curInst));
-  // 切换品种 → 重置并自动开仓
-  candles = []; trades = []; priceHistory = [];
-  longPos = shortPos = null;
-  renderAll();
-  loadChart();
-  loadTrades();
-  fetchPrice().then(() => autoOpen()).catch(() => {});
-  startTick();
-}
-
-// ---- 行情 ----
-async function fetchPrice() {
-  if (!curInst) return;
-  try {
-    const t = await okx(`/market/ticker?instId=${curInst}`);
-    if (t && t[0]) {
-      curPrice = +t[0].last;
-      priceHistory.push({ ts: Date.now(), price: curPrice });
-      if (priceHistory.length > 600) priceHistory.shift();  // 保留~50分钟
-    }
-    B$("btDot").className = "bt-dot bt-ok";
-    B$("btLast").textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false })
-      + (usingFallback ? " (币安兜底)" : " OKX");
-  } catch (e) {
-    B$("btDot").className = "bt-dot bt-err";
-    B$("btLast").textContent = "数据不可达";
-  }
-}
-
-function startTick() {
-  clearInterval(tickTimer);
-  tickTimer = setInterval(async () => {
-    await fetchPrice();
-    updatePositions();
-  }, 5000);
-}
-
-// ---- 盈亏计算 ----
-function updatePositions() {
+// ---- 盈亏计算与渲染 ----
+function updatePnl() {
   if (curPrice <= 0) return;
   const now = Date.now();
   for (const pos of [longPos, shortPos]) {
     if (!pos) continue;
     const isLong = pos.dir === "long";
-    const priceChg = isLong ? (curPrice / pos.entry - 1) : (1 - curPrice / pos.entry);
-    pos.pnl = pos.margin * pos.lev * priceChg;
-    pos.pnlPct = priceChg * pos.lev * 100;
-    // 亏损速度: 取最近60秒的价格变化
+    const chg = isLong ? (curPrice / pos.entry - 1) : (1 - curPrice / pos.entry);
+    pos.pnl = pos.margin * pos.lev * chg;
     const recent = priceHistory.filter(p => now - p.ts <= 60000);
     if (recent.length >= 2) {
-      const oldest = recent[0], newest = recent[recent.length - 1];
-      const chg = isLong ? (newest.price / oldest.price - 1) : (1 - newest.price / oldest.price);
-      pos.speed = pos.margin * pos.lev * chg;   // 每分钟盈亏 USDT
+      const r0 = recent[0], rN = recent[recent.length - 1];
+      const mChg = isLong ? (rN.price / r0.price - 1) : (1 - rN.price / r0.price);
+      pos.speed = pos.margin * pos.lev * mChg;
     } else pos.speed = 0;
   }
   renderPositions();
 }
 
-// ---- 渲染 ----
 function renderPositions() {
-  const sides = [["btLong", longPos], ["btShort", shortPos]];
-  for (const [prefix, pos] of sides) {
-    const pnlEl = B$(prefix + "Pnl"), fillEl = B$(prefix + "Fill"), labelEl = B$(prefix + "Label");
-    const speedEl = B$(prefix + "Speed"), entryEl = B$(prefix + "Entry"), detailEl = B$(prefix + "Detail");
-    if (!pos || !pnlEl) continue;
-    // 盈亏
-    pnlEl.textContent = fmtU(pos.pnl);
+  for (const [prefix, pos] of [["btLong", longPos], ["btShort", shortPos]]) {
+    if (!pos) continue;
+    const pnlEl = B$(prefix + "Pnl");
+    pnlEl.textContent = fmtU(pos.pnl);  // 负数带负号: -$1.65
     pnlEl.className = "bt-pnl " + clsPnL(pos.pnl);
-    // 入场
-    entryEl.innerHTML = `${curInst || "--"}<br>入场 <b>${fmtP(pos.entry)}</b> → 现价 <b>${fmtP(curPrice)}</b>`;
-    // 资金条
+    B$(prefix + "Entry").innerHTML = `入场 <b>${fmtP(pos.entry)}</b> → <b>${fmtP(curPrice)}</b>`;
     const remaining = Math.max(0, pos.margin + pos.pnl);
     const pct = Math.max(0, Math.min(100, remaining / pos.margin * 100));
-    fillEl.style.width = pct + "%";
-    fillEl.className = "bt-fundbar-fill" + (pos.dir === "short" ? " short" : "") + (pct < 50 ? " danger" : pct < 80 ? " warn" : "");
-    labelEl.textContent = `$${remaining.toFixed(2)} / ${pct.toFixed(1)}%`;
-    // 速度
+    const fill = B$(prefix + "Fill");
+    fill.style.width = pct + "%";
+    fill.className = "bt-fundbar-fill" + (pos.dir === "short" ? " short" : "") + (pct < 50 ? " danger" : pct < 80 ? " warn" : "");
+    B$(prefix + "Label").textContent = `$${remaining.toFixed(2)} (${pct.toFixed(1)}%)`;
     const spd = pos.speed || 0;
-    speedEl.textContent = spd === 0 ? "-- /分钟" : `${spd > 0 ? "+" : ""}$${Math.abs(spd).toFixed(2)} /分钟`;
-    speedEl.className = "bt-speed " + clsPnL(spd);
-    // 详情
-    const lev = pos.lev;
-    detailEl.innerHTML = `
-      <div>仓位: $${(pos.margin * lev).toLocaleString()}</div>
-      <div>数量: ${pos.qty < 1 ? pos.qty.toFixed(6) : pos.qty.toFixed(3)}</div>
-      <div>杠杆: ${lev}x</div>
-      <div>价格变动: ${(((curPrice / pos.entry) - 1) * 100).toFixed(3)}%</div>
-      <div>持仓: ${Math.round((Date.now() - pos.entryTime) / 1000)}秒</div>`;
+    const spdEl = B$(prefix + "Speed");
+    spdEl.textContent = `${spd >= 0 ? "+" : "-"}$${Math.abs(spd).toFixed(2)}/分钟`;
+    spdEl.className = "bt-speed " + clsPnL(spd);
+    B$(prefix + "Detail").innerHTML = `
+      <div><span>仓位</span><b>$${(pos.margin * pos.lev).toLocaleString()}</b></div>
+      <div><span>杠杆</span><b>${pos.lev}x</b></div>
+      <div><span>价格变动</span><b>${pctS((curPrice / pos.entry - 1) * 100)}</b></div>
+      <div><span>持仓</span><b>${Math.round((Date.now() - pos.entryTime) / 1000)}秒</b></div>`;
   }
-  // 总资金条
   const total = (longPos ? longPos.margin + longPos.pnl : 0) + (shortPos ? shortPos.margin + shortPos.pnl : 0);
-  const totalPct = Math.max(0, Math.min(100, total / 200 * 100));
+  const tp = Math.max(0, Math.min(100, total / 200 * 100));
   B$("btTotalVal").textContent = `$${total.toFixed(2)}`;
-  B$("btTotalFill").style.width = totalPct + "%";
-  B$("btTotalFill").className = "bt-total-fill" + (totalPct < 50 ? " danger" : totalPct < 80 ? " warn" : "");
+  B$("btTotalFill").style.width = tp + "%";
+  B$("btTotalFill").className = "bt-total-fill" + (tp < 50 ? " danger" : tp < 80 ? " warn" : "");
 }
 
-// ---- K线 ----
-async function loadChart() {
-  if (!curInst) return;
-  try {
-    const data = await okx(`/market/candles?instId=${curInst}&bar=1H&limit=120`);
-    candles = data.map(k => ({ ts: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], vol: +k[5] })).reverse();
-    renderChart();
-  } catch (e) { B$("btChart").innerHTML = `<span class="bt-loading">K线加载失败</span>`; }
+// ---- 切换币种 ----
+async function onCoinChange() {
+  k5 = []; aggTrades = []; priceHistory = [];
+  longPos = shortPos = null;
+  renderPriceChart(); renderVolChart();
+  renderCoinStrip();  // 更新高亮
+  await fetchPrice(curCoin);
+  k5 = await fetchKlines(curCoin);
+  aggTrades = await fetchTrades(curCoin);
+  renderPriceChart(); renderVolChart();
+  autoOpen();
 }
 
-function renderChart() {
-  if (candles.length < 5) return;
-  const W = 480, H = 180, PL = 10, PR = 10, PT = 10, PB = 18;
-  const cw = W - PL - PR, chh = H - PT - PB;
-  const closes = candles.map(k => k.c);
-  const hi = Math.max(...closes), lo = Math.min(...closes);
-  const range = hi - lo || 1;
-  const x = i => PL + i / (closes.length - 1) * cw;
-  const y = p => PT + (1 - (p - lo) / range) * chh;
-  const chg = closes[closes.length - 1] / closes[0] - 1;
-  const lc = chg >= 0 ? "#e54545" : "#24b28c";
-  const pts = closes.map((c, i) => `${x(i).toFixed(1)},${y(c).toFixed(1)}`).join(" ");
-  // 网格
-  let grid = "";
-  for (let g = 0; g <= 3; g++) {
-    const yy = PT + chh * g / 3;
-    grid += `<line x1="${PL}" y1="${yy}" x2="${W-PR}" y2="${yy}" stroke="#232a3a" stroke-width="0.5"/>`;
+// ---- 透视 ----
+B$("btXrayPrice").addEventListener("click", () => openXray("量价分布"));
+B$("btXrayVol").addEventListener("click", () => openXray("大单成交"));
+B$("btXrayClose").addEventListener("click", () => B$("btXrayOverlay").classList.add("hidden"));
+B$("btXrayOverlay").addEventListener("click", (e) => { if (e.target.id === "btXrayOverlay") B$("btXrayOverlay").classList.add("hidden"); });
+
+function openXray(title) {
+  B$("btXrayTitle").textContent = `${curCoin}/USDT · ${title}`;
+  B$("btXrayOverlay").classList.remove("hidden");
+  if (title === "大单成交") {
+    const minQ = Math.max(1, 10000 / curPrice);
+    const large = aggTrades.filter(t => t.q >= minQ).slice(0, 30);
+    B$("btXrayTrades").innerHTML = large.length ? large.map(t =>
+      `<div class="bt-xt-row">
+        <span class="${t.buy ? "bt-green" : "bt-red"}">${t.buy ? "🟢买" : "🔴卖"}</span>
+        <span>${fmtP(t.p)}</span><span>${t.q.toFixed(4)}</span>
+        <span>$${(t.p * t.q).toFixed(0)}</span>
+      </div>`).join("") : "<span class='bt-loading'>4小时窗口内无大单</span>";
+  } else {
+    // 量价分布: 按价格分桶
+    const done = k5.slice(0, -1);
+    if (!done.length) { B$("btXrayTrades").innerHTML = "<span class='bt-loading'>无数据</span>"; return; }
+    const buckets = {};
+    done.forEach(k => {
+      const p = k.c.toFixed(curPrice >= 100 ? 0 : curPrice >= 1 ? 3 : 6);
+      buckets[p] = (buckets[p] || 0) + k.v;
+    });
+    const maxV = Math.max(...Object.values(buckets));
+    B$("btXrayTrades").innerHTML = Object.entries(buckets)
+      .sort((a, b) => +a[0] - +b[0])
+      .map(([p, v]) => {
+        const w = v / maxV * 100;
+        const isCurrent = Math.abs(+p - curPrice) < (curPrice * 0.001);
+        return `<div class="bt-vp-row">
+          <span class="bt-vp-price ${isCurrent ? "bt-vp-cur" : ""}">${p}</span>
+          <div class="bt-vp-bar"><div style="width:${w}%;background:${isCurrent ? "var(--accent)" : "var(--border)"};height:10px;border-radius:3px"></div></div>
+        </div>`;
+      }).join("");
   }
-  const n = closes.length;
-  for (let g = 0; g <= 4; g++) {
-    const xx = PL + cw * g / 4;
-    grid += `<line x1="${xx}" y1="${PT}" x2="${xx}" y2="${H-PB}" stroke="#232a3a" stroke-width="0.5"/>`;
-  }
-  B$("btChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}">${grid}
-    <polygon points="${PL},${H-PB} ${pts} ${x(n-1)},${H-PB}" fill="${lc}" opacity="0.06"/>
-    <polyline points="${pts}" fill="none" stroke="${lc}" stroke-width="1.5"/>
-    <circle cx="${x(n-1)}" cy="${y(curPrice || closes[n-1])}" r="2.5" fill="${lc}"/>
-    <text x="${W-PR}" y="12" text-anchor="end" font-size="10" fill="${lc}" font-weight="700">${(chg*100).toFixed(2)}%</text>
-    <text x="${PL}" y="${H-6}" font-size="8" fill="#7a8299">${new Date(candles[0].ts).toLocaleDateString("zh-CN",{month:"short",day:"numeric"})}</text>
-    <text x="${W-PR}" y="${H-6}" text-anchor="end" font-size="8" fill="#7a8299">${new Date(candles[n-1].ts).toLocaleDateString("zh-CN",{month:"short",day:"numeric"})}</text>
-  </svg>`;
-  B$("btChartNote").textContent = `${candles.length}根 · ${curInst}`;
-}
-
-// ---- 逐笔 ----
-async function loadTrades() {
-  if (!curInst) return;
-  try {
-    const data = await okx(`/market/trades?instId=${curInst}&limit=20`);
-    trades = data;
-    renderTrades();
-  } catch (e) { B$("btTrades").innerHTML = `<span class="bt-loading">成交加载失败</span>`; }
-}
-
-function renderTrades() {
-  if (!trades.length) return;
-  let buyVol = 0, sellVol = 0;
-  const rows = trades.slice(0, 15).map(t => {
-    const isBuy = t.side === "buy";
-    const usd = +t.px * +t.sz;
-    if (isBuy) buyVol += usd; else sellVol += usd;
-    return `<div class="bt-trade-row">
-      <span class="bt-trade-time">${new Date(+t.ts).toLocaleTimeString("zh-CN",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>
-      <span class="bt-trade-px ${isBuy ? "bt-green" : "bt-red"}">${fmtP(+t.px)}</span>
-      <span class="bt-trade-sz">${(+t.sz).toFixed(4)}</span>
-      <span class="bt-trade-side ${isBuy ? "bt-green" : "bt-red"}">${isBuy ? "🟢买" : "🔴卖"}</span>
-    </div>`;
-  }).join("");
-  B$("btTrades").innerHTML = rows;
-  const total = buyVol + sellVol;
-  B$("btVolStats").innerHTML = `
-    <div class="bt-vol-row"><span>主动买</span><b class="bt-green">$${(buyVol/1000).toFixed(1)}K (${total ? (buyVol/total*100).toFixed(0) : 0}%)</b></div>
-    <div class="bt-vol-row"><span>主动卖</span><b class="bt-red">$${(sellVol/1000).toFixed(1)}K (${total ? (sellVol/total*100).toFixed(0) : 0}%)</b></div>`;
-  B$("btVolNote").textContent = `最近${trades.length}笔 · ${curInst}`;
 }
 
 // ---- 手动开仓 ----
-B$("btManualLong").addEventListener("click", () => manualOpen("long"));
-B$("btManualShort").addEventListener("click", () => manualOpen("short"));
-
-function manualOpen(dir) {
-  if (!curInst || curPrice <= 0) { alert("品种未就绪"); return; }
+B$("btManualLong").addEventListener("click", () => manual("多"));
+B$("btManualShort").addEventListener("click", () => manual("空"));
+function manual(dir) {
   const m = Math.max(10, +B$("btManualAmount").value || 100);
-  const lev = Math.min(125, Math.max(1, +B$("btManualLev").value || 10));
-  // 记录但不替换自动仓, 只记到记录里
-  const pnl = 0;  // 手动仓实时计算需要额外状态, v1只记录
-  addRecord(`${dir === "long" ? "📈" : "📉"} 手动${dir === "long" ? "多" : "空"}`, curInst,
-    `${m}U×${lev}x @${fmtP(curPrice)}`);
-  alert(`已记录: ${dir === "long" ? "做多" : "做空"} ${curInst} ${m}U×${lev}x @${fmtP(curPrice)}\n(手动仓盈亏请在持仓区跟踪自动仓的浮盈来感受)`);
+  const l = Math.min(125, Math.max(1, +B$("btManualLev").value || 10));
+  addRecord(dir === "多" ? "📈" : "📉", `${curCoin}/USDT`, `${m}U×${l}x @${fmtP(curPrice)}`);
 }
 
 // ---- 记录 ----
 function loadRecords() { try { records = JSON.parse(localStorage.getItem(RECORD_KEY)) || []; } catch(e) { records = []; } renderRecords(); }
-function addRecord(type, inst, detail) {
-  records.unshift({ t: Date.now(), type, inst, detail });
-  if (records.length > 100) records.pop();
+function addRecord(icon, inst, detail) {
+  records.unshift({ t: Date.now(), icon, inst, detail });
+  if (records.length > 50) records.pop();
   localStorage.setItem(RECORD_KEY, JSON.stringify(records));
   renderRecords();
 }
 function renderRecords() {
-  if (!records.length) { B$("btRecordList").innerHTML = "<span class='bt-loading'>暂无记录</span>"; return; }
-  B$("btRecordList").innerHTML = records.slice(0, 20).map(r =>
-    `<div class="bt-rec-row">
-      <span class="bt-rec-time">${new Date(r.t).toLocaleTimeString("zh-CN",{hour12:false,month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span>
-      <span class="bt-rec-type">${r.type}</span>
-      <span class="bt-rec-inst">${r.inst}</span>
-      <span class="bt-rec-detail">${r.detail}</span>
-    </div>`).join("");
-}
-
-// ---- 渲染总 ----
-function renderAll() {
-  renderPositions();
-  if (candles.length) renderChart();
-  if (trades.length) renderTrades();
+  B$("btRecordList").innerHTML = records.length ? records.slice(0, 15).map(r =>
+    `<span class="bt-rec">${r.icon} ${r.inst} ${r.detail}</span>`).join(" · ") : "<span class='bt-loading'>暂无</span>";
 }
 
 // ---- 事件 ----
@@ -388,19 +329,39 @@ document.querySelectorAll(".bt-tab").forEach(btn =>
     document.querySelectorAll(".bt-tab").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     productType = btn.dataset.pt;
-    futureList = []; optionList = [];  // 重置缓存
-    loadInstruments();
   }));
 
 // ---- 定时刷新 ----
-function startTimer() {
-  clearInterval(timer);
-  timer = setInterval(() => { loadChart(); loadTrades(); }, 60000);
+let tickTimer = null;
+function startTick() {
+  clearInterval(tickTimer);
+  tickTimer = setInterval(async () => {
+    await fetchPrice(curCoin);
+    updatePnl();
+    renderPriceChart();
+  }, 5000);
+  setInterval(async () => {
+    k5 = await fetchKlines(curCoin);
+    aggTrades = await fetchTrades(curCoin);
+    renderVolChart();
+  }, 60000);
+}
+
+// ---- URL入参(和开仓主页一致) ----
+function parseUrlCoin() {
+  const c = new URLSearchParams(location.search).get("coin");
+  if (c) {
+    const sym = c.replace("USDT", "").toUpperCase();
+    if (!COINS.find(x => x.sym === sym)) COINS.push({ sym, name: "" });
+    curCoin = sym;
+  }
 }
 
 // ---- 启动 ----
 (async function init() {
+  parseUrlCoin();
   loadRecords();
-  await loadInstruments();
-  startTimer();
+  await renderCoinStrip();
+  await onCoinChange();
+  startTick();
 })();

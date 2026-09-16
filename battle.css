@@ -1,103 +1,97 @@
 /* ⚔️ 实战OKX */
-:root { --bg:#0a0e14; --card:#11151d; --border:#222836; --text:#d8dee9; --muted:#6b7280;
-  --up:#e54545; --down:#24b28c; --accent:#f0b90b; --danger:#ff3b3b; --warn:#f0b90b; }
+:root { --bg:#0d1117; --card:#161b26; --border:#2a3242; --text:#d8dee9; --muted:#7a8299;
+  --up:#e54545; --down:#24b28c; --accent:#f0b90b; }
 * { box-sizing:border-box; margin:0; padding:0; }
 body { background:var(--bg); color:var(--text); font:13px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; min-height:100vh; display:flex; flex-direction:column; }
+.hidden { display:none !important; }
 .bt-loading { color:var(--muted); font-size:12px; }
 .bt-green { color:var(--down); } .bt-red { color:var(--up); }
 
 /* 顶栏 */
-.bt-topbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:50; }
-.bt-logo { font-size:17px; font-weight:800; color:var(--accent); }
-.bt-motto { font-size:11px; color:var(--muted); }
+.bt-topbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 14px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:50; }
+.bt-logo { font-size:16px; font-weight:800; color:var(--accent); }
 .bt-tabs { display:flex; gap:4px; }
-.bt-tab { background:var(--card); color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:4px 12px; font-size:12px; cursor:pointer; }
+.bt-tab { background:var(--card); color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:3px 10px; font-size:11.5px; cursor:pointer; }
 .bt-tab.active { color:var(--accent); border-color:var(--accent); background:rgba(240,185,11,0.08); font-weight:700; }
-.bt-inst { background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font-size:12px; max-width:220px; }
 .bt-status { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); margin-left:auto; }
-.bt-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); display:inline-block; }
+.bt-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); }
 .bt-dot.bt-ok { background:var(--down); } .bt-dot.bt-err { background:var(--up); }
-.bt-back { color:var(--accent); text-decoration:none; font-size:12px; padding:4px 10px; border:1px solid var(--border); border-radius:6px; }
-.bt-back:hover { border-color:var(--accent); }
+.bt-back { color:var(--accent); text-decoration:none; font-size:12px; padding:3px 8px; border:1px solid var(--border); border-radius:5px; }
+
+/* 币种条(和开仓主页同款) */
+.coin-strip { display:flex; gap:8px; padding:8px 14px; overflow-x:auto; }
+.cc-chip { flex:1 0 100px; min-width:100px; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:5px 8px; cursor:pointer; text-align:center; }
+.cc-chip:hover { border-color:var(--accent); }
+.cc-chip.active { border-color:var(--accent); background:rgba(240,185,11,0.08); }
+.cc-sym { font-size:12px; font-weight:700; }
+.cc-price { font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:1px; }
+.cc-chg { font-size:10.5px; font-weight:600; font-variant-numeric:tabular-nums; }
+.cc-chg.up, .bt-green { color:var(--up); }
+.cc-chg.down, .bt-red { color:var(--down); }
+.up { color:var(--up); } .down { color:var(--down); }
 
 /* 主区域 */
-.bt-main { display:grid; grid-template-columns:200px 1fr 200px; gap:10px; padding:10px 16px; flex:1; }
+.bt-main { display:grid; grid-template-columns:180px 1fr 180px; gap:8px; padding:6px 14px; flex:1; }
 @media (max-width:800px) { .bt-main { grid-template-columns:1fr; } }
 
-/* 左右侧栏(做多/做空) */
-.bt-side { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:6px; }
-.bt-side-head { font-size:14px; font-weight:800; text-align:center; padding-bottom:6px; border-bottom:1px solid var(--border); }
+/* 左右侧栏 */
+.bt-side { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:5px; }
+.bt-side-head { font-size:14px; font-weight:800; text-align:center; padding-bottom:4px; border-bottom:1px solid var(--border); }
 .bt-long .bt-side-head { color:var(--up); } .bt-short .bt-side-head { color:var(--down); }
 .bt-tag { font-size:10px; color:var(--muted); font-weight:400; }
-.bt-entry { font-size:11px; color:var(--muted); text-align:center; line-height:1.6; }
-.bt-pnl { font-size:28px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums; }
-.bt-speed { font-size:12px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums; }
-.bt-fundbar-wrap { margin:4px 0; }
-.bt-fundbar { height:14px; background:rgba(0,0,0,0.4); border-radius:7px; overflow:hidden; border:1px solid var(--border); }
-.bt-fundbar-fill { height:100%; width:100%; background:linear-gradient(90deg,#24b28c,#2ecf9e); border-radius:7px; transition:width .5s ease; }
+.bt-entry { font-size:10.5px; color:var(--muted); text-align:center; line-height:1.5; }
+.bt-pnl { font-size:26px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums; }
+.bt-speed { font-size:11px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums; }
+.bt-fundbar { height:12px; background:rgba(0,0,0,0.4); border-radius:6px; overflow:hidden; border:1px solid var(--border); margin:3px 0; }
+.bt-fundbar-fill { height:100%; width:100%; background:linear-gradient(90deg,#24b28c,#2ecf9e); border-radius:6px; transition:width .5s; }
 .bt-fundbar-fill.short { background:linear-gradient(90deg,#e54545,#ff6b6b); }
-.bt-fundbar-fill.warn { background:linear-gradient(90deg,#f0b90b,#ffd700); }
-.bt-fundbar-fill.danger { background:linear-gradient(90deg,#ff3b3b,#ff0000); animation:pulse 1s ease-in-out infinite; }
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
-.bt-fundbar-label { font-size:10px; color:var(--muted); text-align:center; margin-top:3px; }
-.bt-detail { font-size:10.5px; color:var(--muted); line-height:1.8; border-top:1px dashed var(--border); padding-top:6px; }
+.bt-fundbar-fill.warn, .bt-total-fill.warn { background:linear-gradient(90deg,#f0b90b,#ffd700); }
+.bt-fundbar-fill.danger, .bt-total-fill.danger { background:linear-gradient(90deg,#ff3b3b,#f00); animation:pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+.bt-fundbar-label { font-size:10px; color:var(--muted); text-align:center; }
+.bt-detail { font-size:10px; color:var(--muted); line-height:1.8; border-top:1px dashed var(--border); padding-top:4px; margin-top:auto; }
 .bt-detail div { display:flex; justify-content:space-between; }
 
-/* 中央 */
-.bt-center { display:flex; flex-direction:column; gap:10px; }
-.bt-chart-card, .bt-vol-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:10px; }
-.bt-card-title { font-size:13px; font-weight:700; margin-bottom:6px; }
+/* 中央图表卡 */
+.bt-center { display:flex; flex-direction:column; gap:8px; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:10px; }
+.card-title { font-size:13px; font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:6px; }
 .bt-sub { font-size:10px; font-weight:400; color:var(--muted); }
-.bt-chart svg { width:100%; max-height:200px; }
-.bt-trades { display:flex; flex-direction:column; gap:1px; max-height:200px; overflow-y:auto; }
-.bt-trade-row { display:flex; gap:8px; font-size:11px; padding:2px 4px; font-variant-numeric:tabular-nums; }
-.bt-trade-row:nth-child(odd) { background:rgba(255,255,255,0.02); }
-.bt-trade-time { width:60px; color:var(--muted); font-size:10px; }
-.bt-trade-px { width:80px; text-align:right; font-weight:600; }
-.bt-trade-sz { flex:1; text-align:right; color:var(--muted); }
-.bt-trade-side { width:32px; text-align:right; font-size:10px; }
-.bt-volstats { display:flex; gap:12px; margin-top:6px; padding-top:6px; border-top:1px dashed var(--border); }
-.bt-vol-row { font-size:11px; display:flex; gap:6px; align-items:baseline; }
-.bt-vol-row span { color:var(--muted); }
+.bt-xray { background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.4); border-radius:5px; padding:2px 8px; font-size:11px; cursor:pointer; margin-left:auto; }
+.bt-xray:hover { background:rgba(168,85,247,0.3); }
+.chart-area svg { width:100%; max-height:160px; }
+.chart-info { font-size:11px; color:var(--muted); margin-top:4px; padding-top:4px; border-top:1px dashed var(--border); }
+.chart-info b { color:var(--text); }
 
-/* 底部总资金条 */
-.bt-total-funds { display:flex; align-items:center; gap:12px; padding:8px 16px; background:var(--card); border-top:1px solid var(--border); }
+/* 总资金条 */
+.bt-total-funds { display:flex; align-items:center; gap:10px; padding:6px 14px; background:var(--card); border-top:1px solid var(--border); }
 .bt-total-label { font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap; }
-.bt-total-bar { flex:1; height:18px; background:rgba(0,0,0,0.4); border-radius:9px; overflow:hidden; border:1px solid var(--border); }
-.bt-total-fill { height:100%; width:100%; background:linear-gradient(90deg,#24b28c,#2ecf9e); border-radius:9px; transition:width .5s ease; }
-.bt-total-fill.warn { background:linear-gradient(90deg,#f0b90b,#ffd700); }
-.bt-total-fill.danger { background:linear-gradient(90deg,#ff3b3b,#ff0000); animation:pulse 1s ease-in-out infinite; }
-.bt-total-val { font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.bt-total-bar { flex:1; height:16px; background:rgba(0,0,0,0.4); border-radius:8px; overflow:hidden; border:1px solid var(--border); }
+.bt-total-fill { height:100%; width:100%; background:linear-gradient(90deg,#24b28c,#2ecf9e); border-radius:8px; transition:width .5s; }
+.bt-total-val { font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
 
-/* 手动操作 */
-.bt-controls { display:flex; justify-content:center; align-items:center; gap:8px; padding:8px 16px; }
-.bt-manual { display:flex; align-items:center; gap:6px; }
-.bt-btn { border:none; border-radius:8px; padding:8px 20px; font-size:13px; font-weight:800; cursor:pointer; }
+/* 底部 */
+.bt-bottom { display:flex; flex-wrap:wrap; gap:10px; padding:6px 14px; align-items:center; }
+.bt-manual { display:flex; align-items:center; gap:5px; }
+.bt-btn { border:none; border-radius:7px; padding:6px 16px; font-size:12px; font-weight:800; cursor:pointer; }
 .bt-btn-long { background:var(--up); color:#fff; }
-.bt-btn-long:hover { background:#ff5252; }
 .bt-btn-short { background:var(--down); color:#fff; }
-.bt-btn-short:hover { background:#2ecf9e; }
-.bt-input { width:70px; background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:12px; text-align:center; }
-.bt-input:focus { outline:none; border-color:var(--accent); }
-.bt-lev { width:50px; }
-.bt-x { color:var(--muted); font-size:12px; }
+.bt-input { width:60px; background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:5px; padding:4px 6px; font-size:12px; text-align:center; }
+.bt-lev { width:40px; }
+.bt-records { flex:1; min-width:200px; max-height:32px; overflow-y:auto; }
+.bt-rec { font-size:10.5px; color:var(--muted); }
 
-/* 记录 */
-.bt-records { padding:6px 16px 10px; }
-.bt-record-list { display:flex; flex-direction:column; gap:2px; max-height:140px; overflow-y:auto; }
-.bt-rec-row { display:flex; gap:10px; font-size:11px; padding:3px 6px; background:var(--card); border-radius:4px; }
-.bt-rec-row:nth-child(odd) { background:rgba(255,255,255,0.02); }
-.bt-rec-time { width:80px; color:var(--muted); }
-.bt-rec-type { width:70px; font-weight:700; }
-.bt-rec-inst { width:140px; color:var(--muted); }
-.bt-rec-detail { flex:1; color:var(--muted); }
+/* 透视弹框 */
+.bt-xray-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:200; display:flex; align-items:center; justify-content:center; }
+.bt-xray-modal { width:min(500px,94vw); max-height:80vh; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px; display:flex; flex-direction:column; }
+.bt-xray-head { display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:700; margin-bottom:8px; }
+.bt-xray-close { background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer; }
+.bt-xray-close:hover { color:var(--accent); }
+.bt-xray-body { overflow-y:auto; flex:1; }
+.bt-xt-row { display:flex; gap:10px; font-size:11.5px; padding:3px 6px; border-bottom:1px solid rgba(42,50,66,0.3); }
+.bt-vp-row { display:flex; gap:8px; align-items:center; padding:2px 4px; font-size:11px; }
+.bt-vp-price { width:70px; text-align:right; font-variant-numeric:tabular-nums; }
+.bt-vp-cur { color:var(--accent); font-weight:700; }
+.bt-vp-bar { flex:1; }
 
-.bt-footer { text-align:center; font-size:10px; color:var(--muted); padding:8px; border-top:1px solid var(--border); }
-
-/* 品种卡片条 */
-.bt-inst-strip { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0; max-width: 560px; }
-.bt-ic { flex-shrink: 0; min-width: 82px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; cursor: pointer; text-align: center; transition: border-color .15s; }
-.bt-ic:hover { border-color: var(--accent); }
-.bt-ic.active { border-color: var(--accent); background: rgba(240,185,11,0.1); }
-.bt-ic-label { font-size: 13px; font-weight: 700; }
-.bt-ic-sub { font-size: 9.5px; color: var(--muted); }
+.bt-footer { text-align:center; font-size:10px; color:var(--muted); padding:6px; border-top:1px solid var(--border); }
