@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>⚔️ 实战OKX · 资金流失体验</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
-  <link rel="stylesheet" href="battle.css?v=20260916221449">
+  <link rel="stylesheet" href="battle.css?v=20260917064847">
 </head>
 <body>
   <header class="bt-topbar">
@@ -27,6 +27,7 @@
     <!-- 左: 做多 -->
     <aside class="bt-side bt-long">
       <div class="bt-side-head">📈 做多 <span class="bt-tag">100U×10x</span></div>
+      <div class="bt-curprice" id="btLongCurPrice">--</div>
       <div class="bt-entry" id="btLongEntry">等待</div>
       <div class="bt-pnl" id="btLongPnl">$0.00</div>
       <div class="bt-speed" id="btLongSpeed">--</div>
@@ -56,6 +57,7 @@
     <!-- 右: 做空 -->
     <aside class="bt-side bt-short">
       <div class="bt-side-head">📉 做空 <span class="bt-tag">100U×10x</span></div>
+      <div class="bt-curprice" id="btShortCurPrice">--</div>
       <div class="bt-entry" id="btShortEntry">等待</div>
       <div class="bt-pnl" id="btShortPnl">$0.00</div>
       <div class="bt-speed" id="btShortSpeed">--</div>
@@ -74,17 +76,8 @@
 
   <!-- 手动+记录 -->
   <div class="bt-bottom">
-    <div class="bt-manual">
-      <button class="bt-btn bt-btn-long" id="btManualLong">📈 手动做多</button>
-      <input type="number" id="btManualAmount" value="100" min="10" class="bt-input" title="保证金(U)">
-      <span>×</span>
-      <input type="number" id="btManualLev" value="10" min="1" max="125" class="bt-input bt-lev" title="杠杆">
-      <span>x</span>
-      <button class="bt-btn bt-btn-short" id="btManualShort">📉 手动做空</button>
-    </div>
-    <div class="bt-records">
-      <div id="btRecordList"><span class="bt-loading">暂无记录</span></div>
-    </div>
+
+    <button class="bt-start-btn" id="btStartBtn">🎯 开始监控入局</button>
   </div>
 
   <!-- 透视弹框(简化版: 大单列表) -->
@@ -100,6 +93,6 @@
     </div>
   </div>
 
-  <script src="battle.js?v=20260916221449"></script>
+  <script src="battle.js?v=20260917064847"></script>
 </body>
 </html>

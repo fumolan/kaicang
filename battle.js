@@ -2,7 +2,6 @@
 const B$ = (id) => document.getElementById(id);
 const OKX = "https://www.okx.com/api/v5";
 const BN = "https://data-api.binance.vision";
-const RECORD_KEY = "battle_records_v1";
 let usingFallback = false;
 
 // ---- 币池(和开仓主页一致, 支持URL入参扩展) ----
@@ -18,7 +17,6 @@ let k5 = [];          // 5分钟K线(49根=4小时)
 let aggTrades = [];   // 大单成交
 let longPos = null, shortPos = null;
 let priceHistory = [];
-let records = [];
 
 // ---- 工具 ----
 const fmtP = (p) => p >= 1000 ? p.toLocaleString("en-US",{maximumFractionDigits:1})
@@ -187,6 +185,18 @@ function renderVolChart() {
   B$("btVolInfo").innerHTML = `4h主动买占比 <b style="color:${totalBuy / totalV > 0.5 ? "var(--up)" : "var(--down)"}">${(totalBuy / totalV * 100).toFixed(1)}%</b> · 买占比>55%为买方主导`;
 }
 
+// ---- 侧栏实时价格 ----
+function updateSidePrices() {
+  if (curPrice > 0) {
+    const prev = priceHistory.length >= 2 ? priceHistory[priceHistory.length - 2].price : curPrice;
+    const chg = curPrice - prev;
+    const cls = chg >= 0 ? "bt-green" : "bt-red";
+    const html = `<span class="${cls}">${fmtP(curPrice)}</span> <span style="font-size:10px;color:var(--muted)">${chg >= 0 ? "\u2191" : "\u2193"}${fmtP(Math.abs(chg))}</span>`;
+    B$("btLongCurPrice").innerHTML = html;
+    B$("btShortCurPrice").innerHTML = html;
+  }
+}
+
 // ---- 自动开仓 ----
 function autoOpen() {
   if (curPrice <= 0) return;
@@ -194,7 +204,6 @@ function autoOpen() {
   longPos = { dir: "long", margin: M, lev: L, entry: curPrice, entryTime: now, qty: M * L / curPrice, pnl: 0, speed: 0 };
   shortPos = { dir: "short", margin: M, lev: L, entry: curPrice, entryTime: now, qty: M * L / curPrice, pnl: 0, speed: 0 };
   priceHistory = [{ ts: now, price: curPrice }];
-  addRecord("🔄", `${curCoin}/USDT`, `多空各${M}U×${L}x @${fmtP(curPrice)}`);
   renderPositions();
 }
 
@@ -251,13 +260,15 @@ function renderPositions() {
 async function onCoinChange() {
   k5 = []; aggTrades = []; priceHistory = [];
   longPos = shortPos = null;
+  const sb = B$("btStartBtn");
+  if (sb) { sb.textContent = "\ud83c\udfaf \u5f00\u59cb\u76d1\u63a7\u5165\u5c40"; sb.classList.remove("active"); }
   renderPriceChart(); renderVolChart();
   renderCoinStrip();  // 更新高亮
   await fetchPrice(curCoin);
   k5 = await fetchKlines(curCoin);
   aggTrades = await fetchTrades(curCoin);
   renderPriceChart(); renderVolChart();
-  autoOpen();
+  updateSidePrices();
 }
 
 // ---- 透视 ----
@@ -301,27 +312,16 @@ function openXray(title) {
   }
 }
 
-// ---- 手动开仓 ----
-B$("btManualLong").addEventListener("click", () => manual("多"));
-B$("btManualShort").addEventListener("click", () => manual("空"));
-function manual(dir) {
-  const m = Math.max(10, +B$("btManualAmount").value || 100);
-  const l = Math.min(125, Math.max(1, +B$("btManualLev").value || 10));
-  addRecord(dir === "多" ? "📈" : "📉", `${curCoin}/USDT`, `${m}U×${l}x @${fmtP(curPrice)}`);
-}
+// ---- 开始监控入局 ----
+B$("btStartBtn").addEventListener("click", () => {
+  if (curPrice <= 0) { alert("价格未加载"); return; }
+  autoOpen();
+  const btn = B$("btStartBtn");
+  btn.textContent = "\u2705 \u5df2\u5165\u5c40";
+  btn.classList.add("active");
+  setTimeout(() => { btn.textContent = "\ud83c\udfaf \u5f00\u59cb\u76d1\u63a7\u5165\u5c40"; btn.classList.remove("active"); }, 3000);
+});
 
-// ---- 记录 ----
-function loadRecords() { try { records = JSON.parse(localStorage.getItem(RECORD_KEY)) || []; } catch(e) { records = []; } renderRecords(); }
-function addRecord(icon, inst, detail) {
-  records.unshift({ t: Date.now(), icon, inst, detail });
-  if (records.length > 50) records.pop();
-  localStorage.setItem(RECORD_KEY, JSON.stringify(records));
-  renderRecords();
-}
-function renderRecords() {
-  B$("btRecordList").innerHTML = records.length ? records.slice(0, 15).map(r =>
-    `<span class="bt-rec">${r.icon} ${r.inst} ${r.detail}</span>`).join(" · ") : "<span class='bt-loading'>暂无</span>";
-}
 
 // ---- 事件 ----
 document.querySelectorAll(".bt-tab").forEach(btn =>
@@ -339,6 +339,7 @@ function startTick() {
     await fetchPrice(curCoin);
     updatePnl();
     renderPriceChart();
+    updateSidePrices();
   }, 5000);
   setInterval(async () => {
     k5 = await fetchKlines(curCoin);
@@ -360,7 +361,6 @@ function parseUrlCoin() {
 // ---- 启动 ----
 (async function init() {
   parseUrlCoin();
-  loadRecords();
   await renderCoinStrip();
   await onCoinChange();
   startTick();
