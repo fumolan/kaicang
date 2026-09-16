@@ -19,7 +19,10 @@ const fmtP = (p) => p >= 1000 ? p.toLocaleString("en-US",{maximumFractionDigits:
 const fmtU = (v) => (v >= 0 ? "+" : "") + "$" + Math.abs(v).toFixed(2);
 const clsPnL = (v) => v >= 0 ? "bt-green" : "bt-red";
 
-async function okx(path, timeout = 8000) {
+let usingFallback = false;   // OKX不通时用币安兜底
+const BN = "https://data-api.binance.vision";
+
+async function okx(path, timeout = 4000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeout);
   try {
@@ -27,8 +30,41 @@ async function okx(path, timeout = 8000) {
     clearTimeout(t);
     const d = await r.json();
     if (d.code !== "0") throw new Error(d.msg || "OKX " + d.code);
+    usingFallback = false;
     return d.data;
-  } catch (e) { clearTimeout(t); throw e; }
+  } catch (e) {
+    clearTimeout(t);
+    // OKX不通 → 币安兜底(国内直连)
+    return await binanceFallback(path);
+  }
+}
+
+// 币安兜底: 用现货数据近似(价格差<0.1%, 对体验资金流失速度足够)
+async function binanceFallback(okxPath) {
+  usingFallback = true;
+  // 提取币种: instId=BTC-USDT 或 BTC-USDT-SWAP 等
+  const instMatch = okxPath.match(/instId=([A-Z0-9-]+)/);
+  const base = instMatch ? instMatch[1].split("-")[0] : "BTC";
+  const sym = base + "USDT";
+  if (okxPath.includes("/market/ticker")) {
+    const r = await fetch(BN + "/api/v3/ticker/price?symbol=" + sym, { signal: AbortSignal.timeout(6000) });
+    const d = await r.json();
+    return [{ instId: instMatch?.[1] || sym, last: d.price, ts: String(Date.now()) }];
+  }
+  if (okxPath.includes("/market/candles") || okxPath.includes("candles")) {
+    const r = await fetch(BN + "/api/v3/klines?symbol=" + sym + "&interval=1h&limit=120", { signal: AbortSignal.timeout(8000) });
+    const d = await r.json();
+    // 币安格式: [openTime, o, h, l, c, vol, closeTime, ...] 旧→新
+    return d.map(k => [String(k[0]), String(k[1]), String(k[2]), String(k[3]), String(k[4]), String(k[5]), "0", "0", true]);
+  }
+  if (okxPath.includes("/market/trades")) {
+    const r = await fetch(BN + "/api/v3/aggTrades?symbol=" + sym + "&limit=20", { signal: AbortSignal.timeout(6000) });
+    const d = await r.json();
+    // 币安: m=true=卖方主动, side= sell; m=false=买方主动
+    return d.map((t, i) => ({ instId: sym, tradeId: String(t.a), px: String(t.p), sz: String(t.q), side: t.m ? "sell" : "buy", ts: String(t.T) }));
+  }
+  // 交割/期权的公开合约信息 → 返回空(品种列表用硬编码兜底)
+  return [];
 }
 
 // ---- 品种列表 ----
@@ -44,7 +80,17 @@ async function loadInstruments() {
       items = COINS.map(c => ({ id: `${c}-USDT${type}`, label: c, sub: productType === "SPOT" ? "现货" : "永续" }));
     } else if (productType === "FUTURES") {
       if (!futureList.length) {
-        const list = await okx("/public/instruments?instType=FUTURES&instFamily=BTC-USD");
+        let list = [];
+        try { list = await okx("/public/instruments?instType=FUTURES&instFamily=BTC-USD"); } catch(e) {}
+        if (!list.length && usingFallback) {
+          // 币安兜底: 硬编码BTC交割合约(2026下半年)
+          list = [
+            { instId: "BTC-USD-260925", alias: "this_month", expTime: String(new Date("2026-09-25").getTime()), state: "live" },
+            { instId: "BTC-USD-261030", alias: "next_month", expTime: String(new Date("2026-10-30").getTime()), state: "live" },
+            { instId: "BTC-USD-261225", alias: "quarter", expTime: String(new Date("2026-12-25").getTime()), state: "live" },
+            { instId: "BTC-USD-270326", alias: "next_quarter", expTime: String(new Date("2027-03-26").getTime()), state: "live" },
+          ];
+        }
         futureList = list.filter(x => x.state === "live").map(x => ({
           id: x.instId, alias: x.alias, exp: new Date(+x.expTime).toLocaleDateString("zh-CN", {month:"short",day:"numeric"})
         }));
@@ -143,9 +189,11 @@ async function fetchPrice() {
       if (priceHistory.length > 600) priceHistory.shift();  // 保留~50分钟
     }
     B$("btDot").className = "bt-dot bt-ok";
-    B$("btLast").textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    B$("btLast").textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false })
+      + (usingFallback ? " (币安兜底)" : " OKX");
   } catch (e) {
     B$("btDot").className = "bt-dot bt-err";
+    B$("btLast").textContent = "数据不可达";
   }
 }
 
