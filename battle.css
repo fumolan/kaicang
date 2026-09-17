@@ -59,7 +59,7 @@ body { background:var(--bg); color:var(--text); font:13px/1.5 -apple-system,"Pin
 .bt-sub { font-size:10px; font-weight:400; color:var(--muted); }
 .bt-xray { background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.4); border-radius:5px; padding:2px 8px; font-size:11px; cursor:pointer; margin-left:auto; }
 .bt-xray:hover { background:rgba(168,85,247,0.3); }
-.chart-area svg { width:100%; max-height:160px; }
+.chart-area svg { width:100%; }
 .chart-info { font-size:11px; color:var(--muted); margin-top:4px; padding-top:4px; border-top:1px dashed var(--border); }
 .chart-info b { color:var(--text); }
 
@@ -138,3 +138,10 @@ body { background:var(--bg); color:var(--text); font:13px/1.5 -apple-system,"Pin
 .bt-calc-results { display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:4px; }
 .bt-calc-results div { display:flex; justify-content:space-between; font-size:11px; padding:3px 6px; background:var(--bg); border-radius:4px; }
 .bt-calc-results label { color:var(--muted); }
+
+/* 图表列等高 */
+.bt-main { align-items: stretch; }
+.bt-chart-col { display:flex; flex-direction:column; }
+.bt-chart-col .card { flex:1; display:flex; flex-direction:column; }
+.bt-chart-col .chart-area { flex:1; display:flex; align-items:center; }
+.bt-chart-col .chart-area svg { width:100%; height:auto; max-height:none; }

@@ -154,7 +154,7 @@ function renderPriceChart() {
 function renderVolChart() {
   if (!k5.length) return;
   const done = k5.slice(0, -1);
-  const W = 420, H = 110, PL = 8, PR = 8, PT = 15, PB = 18;
+  const W = 420, H = 150, PL = 8, PR = 8, PT = 15, PB = 18;
   const cw = W - PL - PR, chh = H - PT - PB;
   const totalVols = done.map(k => k.v);
   const maxV = Math.max(...totalVols) || 1;
