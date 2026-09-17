@@ -105,14 +105,16 @@
         <div class="ctp long">
           <span class="ctp-h">📈 做多</span>
           <span>爆仓 <b id="btLiqLong" class="bt-red">--</b></span>
-          <span>止损(-1%) <b id="btSlLong" class="bt-green">--</b></span>
-          <span>止盈(+2%) <b id="btTpLong" class="bt-green">--</b></span>
+          <span>止损 <b id="btSlLong" class="bt-green">--</b></span>
+          <span>止盈 <b id="btTpLong" class="bt-green">--</b></span>
+          <button class="bt-mini-open long" id="btCalcOpenLong">开多</button>
         </div>
         <div class="ctp short">
           <span class="ctp-h">📉 做空</span>
           <span>爆仓 <b id="btLiqShort" class="bt-green">--</b></span>
-          <span>止损(+1%) <b id="btSlShort" class="bt-red">--</b></span>
-          <span>止盈(-2%) <b id="btTpShort" class="bt-green">--</b></span>
+          <span>止损 <b id="btSlShort" class="bt-red">--</b></span>
+          <span>止盈 <b id="btTpShort" class="bt-green">--</b></span>
+          <button class="bt-mini-open short" id="btCalcOpenShort">开空</button>
         </div>
       </div>
       <div class="bt-calc-results">
@@ -121,7 +123,12 @@
         <div><label>仓位≈</label><b id="btPosSize">--</b></div>
         <div><label>止盈赚</label><b id="btTpProfit" class="bt-green">--</b></div>
       </div>
+      <div class="bt-sec-title">📌 持仓 <span class="bt-sub" id="btCalcPosCount"></span></div>
+      <div id="btCalcPositions" class="bt-pos-list"></div>
+      <div class="bt-sec-title">📜 记录 <span class="bt-sub" id="btCalcHistStats"></span></div>
+      <div id="btCalcHistory" class="bt-hist-list"></div>
     </div>
+  </div>
   </div>
 
   <!-- 雷达弹框 -->

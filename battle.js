@@ -519,6 +519,62 @@ async function renderTrades() {
   // 平仓按钮绑定
   B$("btOpenPositions").querySelectorAll(".bt-close-btn").forEach(btn =>
     btn.addEventListener("click", () => closeTrade(+btn.dataset.id)));
+  // 同步计算器卡
+  renderCalcTrades(all);
+}
+
+// ---- 计算器卡的开仓按钮(共用IndexedDB) ----
+B$("btCalcOpenLong").addEventListener("click", () => calcOpen("long"));
+B$("btCalcOpenShort").addEventListener("click", () => calcOpen("short"));
+async function calcOpen(dir) {
+  if (curPrice <= 0) { alert("价格未加载"); return; }
+  const m = Math.max(10, +B$("btCalcMargin").value || 100);
+  const lev = Math.min(125, Math.max(1, +B$("btCalcLev").value || 10));
+  const trade = {
+    id: Date.now() + 1,
+    sym: curCoin, direction: dir,
+    margin: m, leverage: lev,
+    entryPrice: curPrice, entryTime: Date.now(),
+    exitPrice: null, exitTime: null, pnl: null, pct: null,
+    status: "open", source: "calc",
+  };
+  await dbAdd(trade);
+  renderTrades();
+}
+
+// 计算器卡的持仓/记录渲染(共用IndexedDB数据)
+function renderCalcTrades(all) {
+  const open = all.filter(t => t.status === "open");
+  const closed = all.filter(t => t.status === "closed").sort((a, b) => b.exitTime - a.exitTime);
+  B$("btCalcPosCount").textContent = `${open.length}笔`;
+  B$("btCalcPositions").innerHTML = open.length ? open.map(t => {
+    const isLong = t.direction === "long";
+    const chg = isLong ? (curPrice / t.entryPrice - 1) : (1 - curPrice / t.entryPrice);
+    const pnl = t.margin * t.leverage * chg;
+    return `<div class="bt-pos-row">
+      <span class="bt-pos-dir ${isLong ? "bt-green" : "bt-red"}">${isLong ? "↑" : "↓"}</span>
+      <span class="bt-pos-sym">${t.sym}</span>
+      <span class="bt-pos-entry">${fmtP(t.entryPrice)}→${fmtP(curPrice)}</span>
+      <span class="bt-pos-pnl ${pnl >= 0 ? "bt-green" : "bt-red"}">${fmtU(pnl)}</span>
+      <button class="bt-close-btn" data-id="${t.id}">💰</button>
+    </div>`;
+  }).join("") : "<span class='bt-loading'>无</span>";
+  if (closed.length) {
+    const wins = closed.filter(t => t.pnl > 0).length;
+    const net = closed.reduce((s, t) => s + t.pnl, 0);
+    B$("btCalcHistStats").textContent = `${closed.length}笔 胜率${(wins / closed.length * 100).toFixed(0)}% 净${net >= 0 ? "+" : ""}$${net.toFixed(2)}`;
+    B$("btCalcHistory").innerHTML = closed.slice(0, 5).map(t =>
+      `<div class="bt-hist-row">
+        <span class="${t.direction === "long" ? "bt-green" : "bt-red"}">${t.direction === "long" ? "↑" : "↓"}</span>
+        <span>${t.sym}</span><span>${fmtP(t.entryPrice)}→${fmtP(t.exitPrice)}</span>
+        <span class="${t.pnl >= 0 ? "bt-green" : "bt-red"}">${fmtU(t.pnl)}</span>
+      </div>`).join("");
+  } else {
+    B$("btCalcHistStats").textContent = "";
+    B$("btCalcHistory").innerHTML = "<span class='bt-loading'>无</span>";
+  }
+  B$("btCalcPositions").querySelectorAll(".bt-close-btn").forEach(btn =>
+    btn.addEventListener("click", () => closeTrade(+btn.dataset.id)));
 }
 
 // ---- 计算器(保留) ----
