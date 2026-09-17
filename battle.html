@@ -74,6 +74,44 @@
     <span class="bt-total-val" id="btTotalVal">$200.00</span>
   </div>
 
+  <!-- ⚙️ 策略参数 + 🧮 计算器 -->
+  <div class="bt-bottom-cards">
+    <div class="card bt-strategy-card">
+      <div class="card-title">⚙️ 策略交易参数</div>
+      <div class="bt-strat-btns">
+        <button class="bt-dir-btn bt-dir-long active" id="btDirLong">📈 做多</button>
+        <button class="bt-dir-btn bt-dir-short" id="btDirShort">📉 做空</button>
+      </div>
+      <div class="bt-strat-grid">
+        <label>保证金(U)<input id="btMargin" type="number" value="100" min="10"></label>
+        <label>杠杆<input id="btLev" type="number" value="10" min="1" max="125">x</label>
+        <label>开仓价<input id="btEntry" type="number" step="any" placeholder="自动现价"></label>
+        <label>平仓价<input id="btExit" type="number" step="any" placeholder="可选"></label>
+      </div>
+      <div id="btStratPreview" class="bt-strat-preview"></div>
+    </div>
+    <div class="card bt-calc-card">
+      <div class="card-title">🧮 爆仓价 & 利润计算器</div>
+      <div class="bt-calc-grid">
+        <label>杠杆<input id="btCalcLev" type="number" value="10" min="1" max="125">x</label>
+        <label>保证金<input id="btCalcMargin" type="number" value="100">U</label>
+        <label>维持保证金率
+          <select id="btMmr"><option value="0.004">0.4%</option><option value="0.005" selected>0.5%</option><option value="0.01">1%</option></select>
+        </label>
+      </div>
+      <div class="bt-calc-tps">
+        <div class="ctp long"><span>📈做多</span><span>爆仓 <b id="btLiqLong" class="bt-red">--</b></span><span>止损(-1%) <b id="btSlLong" class="bt-green">--</b></span><span>止盈(+2%) <b id="btTpLong" class="bt-green">--</b></span></div>
+        <div class="ctp short"><span>📉做空</span><span>爆仓 <b id="btLiqShort" class="bt-green">--</b></span><span>止损(+1%) <b id="btSlShort" class="bt-red">--</b></span><span>止盈(-2%) <b id="btTpShort" class="bt-green">--</b></span></div>
+      </div>
+      <div class="bt-calc-results">
+        <div><label>做多利润</label><b id="btPnlLong">--</b></div>
+        <div><label>做空利润</label><b id="btPnlShort">--</b></div>
+        <div><label>仓位≈</label><b id="btPosSize">--</b></div>
+        <div><label>止盈赚</label><b id="btTpProfit" class="bt-green">--</b></div>
+      </div>
+    </div>
+  </div>
+
   <!-- 雷达弹框 -->
   <div class="bt-radar-overlay hidden" id="btRadarOverlay">
     <div class="bt-radar-modal">

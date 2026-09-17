@@ -346,6 +346,8 @@ function startTick() {
     updatePnl();
     renderPriceChart();
     updateSidePrices();
+    updateCalc();
+    if (+B$("btEntry").value === 0 || !B$("btEntry").value) updateStrat();
   }, 5000);
   setInterval(async () => {
     k5 = await fetchKlines(curCoin);
@@ -371,3 +373,54 @@ function parseUrlCoin() {
   await onCoinChange();
   startTick();
 })();
+
+// ==================== 策略参数 + 计算器 ====================
+let btDir = "long";
+B$("btDirLong").addEventListener("click", () => { btDir = "long"; B$("btDirLong").classList.add("active"); B$("btDirShort").classList.remove("active"); updateStrat(); });
+B$("btDirShort").addEventListener("click", () => { btDir = "short"; B$("btDirShort").classList.add("active"); B$("btDirLong").classList.remove("active"); updateStrat(); });
+["btMargin", "btLev", "btEntry", "btExit"].forEach(id => B$(id).addEventListener("input", updateStrat));
+function updateStrat() {
+  const m = +B$("btMargin").value || 100;
+  const lev = Math.min(125, Math.max(1, +B$("btLev").value || 10));
+  const entry = +B$("btEntry").value || curPrice;
+  const exit = +B$("btExit").value || entry;
+  if (entry <= 0) return;
+  const imr = 1 / lev, mmr = 0.005;
+  const liq = btDir === "long" ? entry * (1 - imr + mmr) : entry * (1 + imr - mmr);
+  const qty = m * lev / entry;
+  const pnl = btDir === "long" ? (exit - entry) * qty : (entry - exit) * qty;
+  B$("btStratPreview").innerHTML = `
+    ${btDir === "long" ? "📈做多" : "📉做空"} | 仓位 $${(m*lev).toLocaleString()} (${qty<1?qty.toFixed(6):qty.toFixed(3)}) |
+    爆仓 <b class="bt-red">${fmtP(liq)}</b> |
+    入→出 ${fmtP(entry)}→${fmtP(exit)} 盈亏 <b class="${pnl>=0?'bt-green':'bt-red'}">${fmtU(pnl)}</b>`;
+}
+
+// 计算器
+["btCalcLev", "btCalcMargin", "btMmr"].forEach(id => B$(id).addEventListener("input", updateCalc));
+B$("btEntry")?.addEventListener("input", updateCalc);
+function updateCalc() {
+  const lev = Math.min(125, Math.max(1, +B$("btCalcLev").value || 10));
+  const m = +B$("btCalcMargin").value || 100;
+  const mmr = +B$("btMmr").value || 0.005;
+  const entry = +B$("btEntry").value || curPrice;
+  const exit = +B$("btExit").value || entry;
+  if (entry <= 0) return;
+  const imr = 1 / lev;
+  const liqL = entry * (1 - imr + mmr), liqS = entry * (1 + imr - mmr);
+  B$("btLiqLong").textContent = fmtP(liqL);
+  B$("btLiqShort").textContent = fmtP(liqS);
+  B$("btSlLong").textContent = fmtP(entry * 0.99);
+  B$("btSlShort").textContent = fmtP(entry * 1.01);
+  B$("btTpLong").textContent = fmtP(entry * 1.02);
+  B$("btTpShort").textContent = fmtP(entry * 0.98);
+  const qty = m * lev / entry;
+  const pnlL = (exit - entry) * qty, pnlS = (entry - exit) * qty;
+  B$("btPnlLong").textContent = fmtU(pnlL);
+  B$("btPnlLong").className = pnlL >= 0 ? "bt-green" : "bt-red";
+  B$("btPnlShort").textContent = fmtU(pnlS);
+  B$("btPnlShort").className = pnlS >= 0 ? "bt-green" : "bt-red";
+  B$("btPosSize").textContent = "$" + (m * lev).toLocaleString();
+  B$("btTpProfit").textContent = "+$" + (m * lev * 0.02).toFixed(2);
+}
+// 初始触发
+updateStrat(); updateCalc();

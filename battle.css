@@ -120,3 +120,21 @@ body { background:var(--bg); color:var(--text); font:13px/1.5 -apple-system,"Pin
 @media (max-width:1200px) { .bt-main { grid-template-columns:150px 1fr 1fr 150px; } }
 @media (max-width:900px) { .bt-main { grid-template-columns:1fr 1fr; } .bt-side { order:3; } }
 @media (max-width:600px) { .bt-main { grid-template-columns:1fr; } }
+
+/* 底部策略+计算器 */
+.bt-bottom-cards { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:6px 14px; }
+@media (max-width:800px) { .bt-bottom-cards { grid-template-columns:1fr; } }
+.bt-strat-btns { display:flex; gap:6px; margin-bottom:6px; }
+.bt-dir-btn { flex:1; padding:6px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--muted); font-size:12px; font-weight:700; cursor:pointer; }
+.bt-dir-btn.active { border-color:var(--accent); background:rgba(240,185,11,0.1); color:var(--accent); }
+.bt-dir-long.active { border-color:var(--up); color:var(--up); background:rgba(229,69,69,0.1); }
+.bt-dir-short.active { border-color:var(--down); color:var(--down); background:rgba(36,178,140,0.1); }
+.bt-strat-grid, .bt-calc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:6px; margin-bottom:6px; }
+.bt-strat-grid label, .bt-calc-grid label { font-size:10.5px; color:var(--muted); display:flex; flex-direction:column; gap:2px; }
+.bt-strat-grid input, .bt-calc-grid input, .bt-calc-grid select { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:5px; padding:4px 6px; font-size:12px; }
+.bt-strat-preview { font-size:11.5px; color:var(--text); padding:6px; background:var(--bg); border-radius:6px; margin-top:4px; }
+.bt-calc-tps { display:flex; flex-direction:column; gap:4px; margin:6px 0; }
+.bt-calc-tps .ctp { display:flex; gap:8px; font-size:11.5px; justify-content:space-between; padding:4px 6px; background:var(--bg); border-radius:5px; }
+.bt-calc-results { display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:4px; }
+.bt-calc-results div { display:flex; justify-content:space-between; font-size:11px; padding:3px 6px; background:var(--bg); border-radius:4px; }
+.bt-calc-results label { color:var(--muted); }
