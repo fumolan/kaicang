@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>⚔️ 实战OKX · 资金流失体验</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
-  <link rel="stylesheet" href="battle.css?v=20260917064847">
+  <link rel="stylesheet" href="battle.css?v=5">
 </head>
 <body>
   <header class="bt-topbar">
     <div class="bt-logo">⚔️ 实战</div>
+    <button class="bt-start-btn" id="btStartBtn">🎯 监控入局</button>
+    <button class="bt-radar-btn" id="btRadarBtn">📡 雷达</button>
     <nav class="bt-tabs">
       <button class="bt-tab active" data-pt="SPOT">现货</button>
       <button class="bt-tab" data-pt="SWAP">永续</button>
@@ -20,11 +22,9 @@
     <a class="bt-back" href="index.html">← 开仓</a>
   </header>
 
-  <!-- 币种条(和开仓主页同款, 支持?coin=入参) -->
   <div class="coin-strip" id="btCoinStrip"><span class="bt-loading">加载中…</span></div>
 
   <main class="bt-main">
-    <!-- 左: 做多 -->
     <aside class="bt-side bt-long">
       <div class="bt-side-head">📈 做多 <span class="bt-tag">100U×10x</span></div>
       <div class="bt-curprice" id="btLongCurPrice">--</div>
@@ -36,25 +36,26 @@
       <div class="bt-detail" id="btLongDetail"></div>
     </aside>
 
-    <!-- 中: 两张图(和开仓主页同款) -->
-    <section class="bt-center">
+    <section class="bt-chart-col">
       <div class="card chart-card">
-        <div class="card-title">📈 价格走势 <span class="bt-sub">4小时 · 5分钟</span>
-          <button class="bt-xray" id="btXrayPrice" title="透视">🔍</button>
+        <div class="card-title">📈 价格走势 <span class="bt-sub">4h·5min</span>
+          <button class="bt-xray" id="btXrayPrice">🔍</button>
         </div>
         <div id="btPriceChart" class="chart-area"><span class="bt-loading">等待品种</span></div>
         <div class="chart-info" id="btPriceInfo"></div>
       </div>
+    </section>
+
+    <section class="bt-chart-col">
       <div class="card chart-card">
-        <div class="card-title">📊 成交量 · 主动买占比 <span class="bt-sub">4小时</span>
-          <button class="bt-xray" id="btXrayVol" title="透视">🔍</button>
+        <div class="card-title">📊 成交量·主动买 <span class="bt-sub">4h</span>
+          <button class="bt-xray" id="btXrayVol">🔍</button>
         </div>
         <div id="btVolChart" class="chart-area"><span class="bt-loading">等待品种</span></div>
         <div class="chart-info" id="btVolInfo"></div>
       </div>
     </section>
 
-    <!-- 右: 做空 -->
     <aside class="bt-side bt-short">
       <div class="bt-side-head">📉 做空 <span class="bt-tag">100U×10x</span></div>
       <div class="bt-curprice" id="btShortCurPrice">--</div>
@@ -67,20 +68,24 @@
     </aside>
   </main>
 
-  <!-- 总资金条 -->
   <div class="bt-total-funds">
     <span class="bt-total-label">💰 总资金</span>
     <div class="bt-total-bar"><div class="bt-total-fill" id="btTotalFill"></div></div>
     <span class="bt-total-val" id="btTotalVal">$200.00</span>
   </div>
 
-  <!-- 手动+记录 -->
-  <div class="bt-bottom">
-
-    <button class="bt-start-btn" id="btStartBtn">🎯 开始监控入局</button>
+  <!-- 雷达弹框 -->
+  <div class="bt-radar-overlay hidden" id="btRadarOverlay">
+    <div class="bt-radar-modal">
+      <div class="bt-radar-head">
+        <span>📡 加密雷达</span>
+        <button class="bt-radar-close" id="btRadarClose">&times;</button>
+      </div>
+      <iframe class="bt-radar-frame" src="https://fumolan.github.io/crypto-radar/" loading="lazy"></iframe>
+    </div>
   </div>
 
-  <!-- 透视弹框(简化版: 大单列表) -->
+  <!-- 透视弹框 -->
   <div class="bt-xray-overlay hidden" id="btXrayOverlay">
     <div class="bt-xray-modal">
       <div class="bt-xray-head">
@@ -93,6 +98,6 @@
     </div>
   </div>
 
-  <script src="battle.js?v=20260917064847"></script>
+  <script src="battle.js?v=5"></script>
 </body>
 </html>

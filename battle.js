@@ -271,6 +271,12 @@ async function onCoinChange() {
   updateSidePrices();
 }
 
+// ---- 雷达弹框 ----
+B$("btRadarBtn").addEventListener("click", () => B$("btRadarOverlay").classList.remove("hidden"));
+B$("btRadarClose").addEventListener("click", () => B$("btRadarOverlay").classList.add("hidden"));
+B$("btRadarOverlay").addEventListener("click", (e) => { if (e.target.id === "btRadarOverlay") B$("btRadarOverlay").classList.add("hidden"); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") B$("btRadarOverlay").classList.add("hidden"); });
+
 // ---- 透视 ----
 B$("btXrayPrice").addEventListener("click", () => openXray("量价分布"));
 B$("btXrayVol").addEventListener("click", () => openXray("大单成交"));

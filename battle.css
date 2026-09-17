@@ -31,7 +31,7 @@ body { background:var(--bg); color:var(--text); font:13px/1.5 -apple-system,"Pin
 .up { color:var(--up); } .down { color:var(--down); }
 
 /* 主区域 */
-.bt-main { display:grid; grid-template-columns:180px 1fr 180px; gap:8px; padding:6px 14px; flex:1; }
+.bt-main { display:grid; grid-template-columns:170px 1fr 1fr 170px; gap:8px; padding:6px 14px; flex:1; }
 @media (max-width:800px) { .bt-main { grid-template-columns:1fr; } }
 
 /* 左右侧栏 */
@@ -102,3 +102,21 @@ body { background:var(--bg); color:var(--text); font:13px/1.5 -apple-system,"Pin
 .bt-start-btn { background:linear-gradient(135deg,#f0b90b,#ff6b00); color:#fff; border:none; border-radius:10px; padding:8px 24px; font-size:14px; font-weight:800; cursor:pointer; box-shadow:0 2px 8px rgba(240,185,11,0.3); transition:all .2s; }
 .bt-start-btn:hover { transform:scale(1.05); box-shadow:0 4px 12px rgba(240,185,11,0.5); }
 .bt-start-btn.active { background:var(--down); }
+
+/* 顶栏按钮 */
+.bt-topbar .bt-start-btn { padding:4px 14px; font-size:12px; border-radius:6px; }
+.bt-topbar .bt-start-btn.active { background:var(--down); }
+.bt-radar-btn { background:rgba(168,85,247,0.2); color:#c084fc; border:1px solid rgba(168,85,247,0.5); border-radius:6px; padding:4px 14px; font-size:12px; font-weight:800; cursor:pointer; }
+.bt-radar-btn:hover { background:rgba(168,85,247,0.35); }
+/* 雷达弹框 */
+.bt-radar-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:300; display:flex; align-items:center; justify-content:center; }
+.bt-radar-overlay.hidden { display:none; }
+.bt-radar-modal { width:min(900px,95vw); height:min(700px,88vh); background:var(--card); border:1px solid var(--border); border-radius:12px; display:flex; flex-direction:column; overflow:hidden; }
+.bt-radar-head { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid var(--border); font-size:14px; font-weight:700; }
+.bt-radar-close { background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer; }
+.bt-radar-close:hover { color:var(--accent); }
+.bt-radar-frame { flex:1; border:none; width:100%; background:#0d1117; }
+/* 移动端四列改两列再改一列 */
+@media (max-width:1200px) { .bt-main { grid-template-columns:150px 1fr 1fr 150px; } }
+@media (max-width:900px) { .bt-main { grid-template-columns:1fr 1fr; } .bt-side { order:3; } }
+@media (max-width:600px) { .bt-main { grid-template-columns:1fr; } }
