@@ -76,8 +76,8 @@
 
   <!-- ⚙️ 策略参数 + 🧮 计算器(和开仓主页同款) -->
   <div class="bt-bottom-cards">
-    <div class="card bt-strategy-card">
-      <div class="card-title">⚙️ 策略交易参数 <span class="bt-sub">选方向→填参数→看预览</span></div>
+    <div class="card bt-trade-card">
+      <div class="card-title">📋 模拟交易记录 <span class="bt-sub">IndexedDB持久化</span></div>
       <div class="bt-strat-btns">
         <button class="bt-dir-btn bt-dir-long active" id="btDirLong">📈 做多</button>
         <button class="bt-dir-btn bt-dir-short" id="btDirShort">📉 做空</button>
@@ -87,6 +87,11 @@
         <label>杠杆<input id="btLev" type="number" value="10" min="1" max="125">x</label>
       </div>
       <div id="btStratPreview" class="bt-strat-preview"><span class="bt-loading">等待价格…</span></div>
+      <button class="bt-open-btn" id="btOpenBtn">🚀 开仓</button>
+      <div class="bt-sec-title">📌 持仓 <span class="bt-sub" id="btPosCount"></span></div>
+      <div id="btOpenPositions" class="bt-pos-list"></div>
+      <div class="bt-sec-title">📜 已完结 <span class="bt-sub" id="btHistStats"></span></div>
+      <div id="btClosedTrades" class="bt-hist-list"></div>
     </div>
     <div class="card bt-calc-card">
       <div class="card-title">🧮 爆仓价 & 利润计算器 <span class="bt-sub" id="btCalcPrice">--</span></div>

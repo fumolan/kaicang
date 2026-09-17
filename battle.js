@@ -271,6 +271,7 @@ async function onCoinChange() {
   updateSidePrices();
   updateStrat();
   updateCalc();
+  renderTrades();
 }
 
 // ---- 雷达弹框 ----
@@ -349,6 +350,7 @@ function startTick() {
     renderPriceChart();
     updateSidePrices();
     updateStrat();
+    renderTrades();
     updateCalc();
     if (+B$("btEntry").value === 0 || !B$("btEntry").value) updateStrat();
   }, 5000);
@@ -378,23 +380,51 @@ function parseUrlCoin() {
 })();
 
 
-// 简化版币种档位(仅供策略参数展示)
-const BT_PROFILES = {
-  major: { label: '主流', tp: 0.02, sl: 0.01 },
-  alt: { label: '山寨', tp: 0.03, sl: 0.015 },
-  volatile: { label: '高波动', tp: 0.05, sl: 0.02 },
-};
-const BT_CLASS = { BTC:'major', ETH:'major', SOL:'alt', XRP:'alt', DOGE:'volatile', LSK:'volatile' };
-function coinProfile(sym) {
-  const base = sym.replace('USDT','');
-  return BT_PROFILES[BT_CLASS[base] || 'alt'];
+// ==================== IndexedDB 交易系统 ====================
+const BT_DB = "battle_trades";
+const BT_STORE = "trades";
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(BT_DB, 1);
+    req.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore(BT_STORE, { keyPath: "id" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
-// ==================== 策略参数 + 计算器(自动用现价) ====================
+async function dbAdd(trade) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(BT_STORE, "readwrite");
+    tx.objectStore(BT_STORE).put(trade);
+    tx.oncomplete = () => res(trade);
+    tx.onerror = () => rej(tx.error);
+  });
+}
+async function dbGetAll() {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const req = db.transaction(BT_STORE, "readonly").objectStore(BT_STORE).getAll();
+    req.onsuccess = () => res(req.result || []);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function dbDelete(id) {
+  const db = await openDB();
+  return new Promise((res) => {
+    const tx = db.transaction(BT_STORE, "readwrite");
+    tx.objectStore(BT_STORE).delete(id);
+    tx.oncomplete = () => res();
+  });
+}
+
+// ---- 方向/预览 ----
 let btDir = "long";
 B$("btDirLong").addEventListener("click", () => { btDir = "long"; B$("btDirLong").classList.add("active"); B$("btDirShort").classList.remove("active"); updateStrat(); });
 B$("btDirShort").addEventListener("click", () => { btDir = "short"; B$("btDirShort").classList.add("active"); B$("btDirLong").classList.remove("active"); updateStrat(); });
 ["btMargin", "btLev"].forEach(id => B$(id).addEventListener("input", updateStrat));
-["btCalcLev", "btCalcMargin", "btCalcExit", "btMmr"].forEach(id => B$(id).addEventListener("input", updateCalc));
 
 function updateStrat() {
   if (curPrice <= 0) return;
@@ -406,16 +436,93 @@ function updateStrat() {
   const qty = m * lev / curPrice;
   const tp = isLong ? curPrice * 1.02 : curPrice * 0.98;
   const sl = isLong ? curPrice * 0.99 : curPrice * 1.01;
-  const pf = coinProfile ? coinProfile(curCoin + "USDT") : { label: "山寨", tp: 0.03, sl: 0.015 };
-  const tpPf = isLong ? curPrice * (1 + pf.tp) : curPrice * (1 - pf.tp);
-  const slPf = isLong ? curPrice * (1 - pf.sl) : curPrice * (1 + pf.sl);
   B$("btStratPreview").innerHTML = `
     <b>${isLong ? "📈做多" : "📉做空"} ${curCoin}</b> | 仓位 <b>$${(m*lev).toLocaleString()}</b> (${qty<1?qty.toFixed(6):qty.toFixed(3)})<br>
-    现价 <b>${fmtP(curPrice)}</b> | 爆仓 <b class="bt-red">${fmtP(liq)}</b><br>
-    固定止盈+2% <b class="bt-green">${fmtP(tp)}</b> / 止损-1% <b class="bt-red">${fmtP(sl)}</b><br>
-    ${pf.label}档止盈+${(pf.tp*100).toFixed(1)}% <b class="bt-green">${fmtP(tpPf)}</b> / 止损-${(pf.sl*100).toFixed(1)}% <b class="bt-red">${fmtP(slPf)}</b>`;
+    现价 <b>${fmtP(curPrice)}</b> | 爆仓 <b class="bt-red">${fmtP(liq)}</b> | 止盈 <b class="bt-green">${fmtP(tp)}</b> / 止损 <b class="bt-red">${fmtP(sl)}</b>`;
 }
 
+// ---- 开仓 ----
+B$("btOpenBtn").addEventListener("click", async () => {
+  if (curPrice <= 0) { alert("价格未加载"); return; }
+  const m = Math.max(10, +B$("btMargin").value || 100);
+  const lev = Math.min(125, Math.max(1, +B$("btLev").value || 10));
+  const trade = {
+    id: Date.now(),
+    sym: curCoin,
+    direction: btDir,
+    margin: m, leverage: lev,
+    entryPrice: curPrice, entryTime: Date.now(),
+    exitPrice: null, exitTime: null,
+    pnl: null, pct: null,
+    status: "open",
+  };
+  await dbAdd(trade);
+  renderTrades();
+});
+
+// ---- 平仓 ----
+async function closeTrade(id) {
+  const all = await dbGetAll();
+  const t = all.find(x => x.id === id);
+  if (!t || t.status !== "open" || curPrice <= 0) return;
+  const isLong = t.direction === "long";
+  const chg = isLong ? (curPrice / t.entryPrice - 1) : (1 - curPrice / t.entryPrice);
+  t.status = "closed";
+  t.exitPrice = curPrice;
+  t.exitTime = Date.now();
+  t.pnl = +(t.margin * t.leverage * chg).toFixed(2);
+  t.pct = +(chg * t.leverage * 100).toFixed(1);
+  await dbAdd(t);
+  renderTrades();
+}
+
+// ---- 渲染 ----
+async function renderTrades() {
+  const all = await dbGetAll();
+  const open = all.filter(t => t.status === "open").sort((a, b) => b.entryTime - a.entryTime);
+  const closed = all.filter(t => t.status === "closed").sort((a, b) => b.exitTime - a.exitTime);
+
+  // 持仓
+  B$("btPosCount").textContent = `${open.length}笔`;
+  B$("btOpenPositions").innerHTML = open.length ? open.map(t => {
+    const isLong = t.direction === "long";
+    const chg = isLong ? (curPrice / t.entryPrice - 1) : (1 - curPrice / t.entryPrice);
+    const pnl = t.margin * t.leverage * chg;
+    return `<div class="bt-pos-row">
+      <span class="bt-pos-dir ${isLong ? "bt-green" : "bt-red"}">${isLong ? "↑多" : "↓空"}</span>
+      <span class="bt-pos-sym">${t.sym}</span>
+      <span class="bt-pos-entry">${fmtP(t.entryPrice)}→${fmtP(curPrice)}</span>
+      <span class="bt-pos-pnl ${pnl >= 0 ? "bt-green" : "bt-red"}">${fmtU(pnl)}</span>
+      <button class="bt-close-btn" data-id="${t.id}">💰</button>
+    </div>`;
+  }).join("") : "<span class='bt-loading'>暂无持仓</span>";
+
+  // 已完结
+  if (closed.length) {
+    const wins = closed.filter(t => t.pnl > 0).length;
+    const net = closed.reduce((s, t) => s + t.pnl, 0);
+    B$("btHistStats").textContent = `${closed.length}笔 · 胜率${(wins / closed.length * 100).toFixed(0)}% · 净${net >= 0 ? "+" : ""}$${net.toFixed(2)}`;
+    B$("btClosedTrades").innerHTML = closed.slice(0, 10).map(t => {
+      const isLong = t.direction === "long";
+      return `<div class="bt-hist-row">
+        <span class="${isLong ? "bt-green" : "bt-red"}">${isLong ? "↑" : "↓"}</span>
+        <span>${t.sym}</span>
+        <span>${fmtP(t.entryPrice)}→${fmtP(t.exitPrice)}</span>
+        <span class="${t.pnl >= 0 ? "bt-green" : "bt-red"}">${fmtU(t.pnl)} (${t.pct >= 0 ? "+" : ""}${t.pct}%)</span>
+      </div>`;
+    }).join("");
+  } else {
+    B$("btHistStats").textContent = "";
+    B$("btClosedTrades").innerHTML = "<span class='bt-loading'>暂无记录</span>";
+  }
+
+  // 平仓按钮绑定
+  B$("btOpenPositions").querySelectorAll(".bt-close-btn").forEach(btn =>
+    btn.addEventListener("click", () => closeTrade(+btn.dataset.id)));
+}
+
+// ---- 计算器(保留) ----
+["btCalcLev", "btCalcMargin", "btCalcExit", "btMmr"].forEach(id => B$(id).addEventListener("input", updateCalc));
 function updateCalc() {
   if (curPrice <= 0) return;
   const lev = Math.min(125, Math.max(1, +B$("btCalcLev").value || 10));
@@ -435,7 +542,7 @@ function updateCalc() {
   const pnlL = (exit - curPrice) * qty, pnlS = (curPrice - exit) * qty;
   const pl = B$("btPnlLong"); pl.textContent = fmtU(pnlL); pl.className = pnlL >= 0 ? "bt-green" : "bt-red";
   const ps = B$("btPnlShort"); ps.textContent = fmtU(pnlS); ps.className = pnlS >= 0 ? "bt-green" : "bt-red";
-  B$("btPosSize").textContent = "$" + (m * lev).toLocaleString() + ` (${qty<1?qty.toFixed(4):qty.toFixed(2)})`;
+  B$("btPosSize").textContent = "$" + (m * lev).toLocaleString();
   B$("btTpProfit").textContent = "+$" + (m * lev * 0.02).toFixed(2);
 }
 

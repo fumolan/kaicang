@@ -149,3 +149,19 @@ body { background:var(--bg); color:var(--text); font:13px/1.5 -apple-system,"Pin
 .bt-calc-results div { display:flex; justify-content:space-between; align-items:baseline; font-size:11px; padding:4px 8px; background:var(--bg); border-radius:5px; }
 .bt-calc-results label { color:var(--muted); font-size:10px; }
 .bt-calc-results b { font-size:12px; }
+
+/* 模拟交易记录卡(IndexedDB) */
+.bt-open-btn { width:100%; background:var(--accent); color:#000; border:none; border-radius:8px; padding:8px; font-size:13px; font-weight:800; cursor:pointer; margin:6px 0; }
+.bt-open-btn:hover { filter:brightness(1.2); }
+.bt-sec-title { font-size:12px; font-weight:700; color:var(--accent); margin:8px 0 4px; }
+.bt-pos-list, .bt-hist-list { display:flex; flex-direction:column; gap:2px; max-height:120px; overflow-y:auto; }
+.bt-pos-row { display:flex; gap:8px; align-items:center; font-size:11px; padding:3px 6px; background:var(--bg); border-radius:4px; }
+.bt-pos-dir { font-weight:800; width:30px; }
+.bt-pos-sym { font-weight:700; width:40px; }
+.bt-pos-entry { flex:1; color:var(--muted); font-size:10px; }
+.bt-pos-pnl { font-weight:700; }
+.bt-close-btn { background:var(--down); color:#fff; border:none; border-radius:4px; padding:2px 8px; font-size:10px; cursor:pointer; }
+.bt-hist-row { display:flex; gap:8px; font-size:10.5px; padding:2px 6px; background:var(--bg); border-radius:3px; }
+.bt-hist-row span:nth-child(2) { font-weight:700; width:36px; }
+.bt-hist-row span:nth-child(3) { flex:1; color:var(--muted); }
+.bt-hist-row span:nth-child(4) { font-weight:700; }
