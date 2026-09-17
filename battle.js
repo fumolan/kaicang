@@ -269,6 +269,8 @@ async function onCoinChange() {
   aggTrades = await fetchTrades(curCoin);
   renderPriceChart(); renderVolChart();
   updateSidePrices();
+  updateStrat();
+  updateCalc();
 }
 
 // ---- 雷达弹框 ----
@@ -346,6 +348,7 @@ function startTick() {
     updatePnl();
     renderPriceChart();
     updateSidePrices();
+    updateStrat();
     updateCalc();
     if (+B$("btEntry").value === 0 || !B$("btEntry").value) updateStrat();
   }, 5000);
@@ -374,56 +377,67 @@ function parseUrlCoin() {
   startTick();
 })();
 
-// ==================== 策略参数 + 计算器 ====================
+
+// 简化版币种档位(仅供策略参数展示)
+const BT_PROFILES = {
+  major: { label: '主流', tp: 0.02, sl: 0.01 },
+  alt: { label: '山寨', tp: 0.03, sl: 0.015 },
+  volatile: { label: '高波动', tp: 0.05, sl: 0.02 },
+};
+const BT_CLASS = { BTC:'major', ETH:'major', SOL:'alt', XRP:'alt', DOGE:'volatile', LSK:'volatile' };
+function coinProfile(sym) {
+  const base = sym.replace('USDT','');
+  return BT_PROFILES[BT_CLASS[base] || 'alt'];
+}
+// ==================== 策略参数 + 计算器(自动用现价) ====================
 let btDir = "long";
 B$("btDirLong").addEventListener("click", () => { btDir = "long"; B$("btDirLong").classList.add("active"); B$("btDirShort").classList.remove("active"); updateStrat(); });
 B$("btDirShort").addEventListener("click", () => { btDir = "short"; B$("btDirShort").classList.add("active"); B$("btDirLong").classList.remove("active"); updateStrat(); });
-["btMargin", "btLev", "btEntry", "btExit"].forEach(id => B$(id).addEventListener("input", updateStrat));
+["btMargin", "btLev"].forEach(id => B$(id).addEventListener("input", updateStrat));
+["btCalcLev", "btCalcMargin", "btCalcExit", "btMmr"].forEach(id => B$(id).addEventListener("input", updateCalc));
+
 function updateStrat() {
-  const m = +B$("btMargin").value || 100;
+  if (curPrice <= 0) return;
+  const m = Math.max(10, +B$("btMargin").value || 100);
   const lev = Math.min(125, Math.max(1, +B$("btLev").value || 10));
-  const entry = +B$("btEntry").value || curPrice;
-  const exit = +B$("btExit").value || entry;
-  if (entry <= 0) return;
+  const isLong = btDir === "long";
   const imr = 1 / lev, mmr = 0.005;
-  const liq = btDir === "long" ? entry * (1 - imr + mmr) : entry * (1 + imr - mmr);
-  const qty = m * lev / entry;
-  const pnl = btDir === "long" ? (exit - entry) * qty : (entry - exit) * qty;
+  const liq = isLong ? curPrice * (1 - imr + mmr) : curPrice * (1 + imr - mmr);
+  const qty = m * lev / curPrice;
+  const tp = isLong ? curPrice * 1.02 : curPrice * 0.98;
+  const sl = isLong ? curPrice * 0.99 : curPrice * 1.01;
+  const pf = coinProfile ? coinProfile(curCoin + "USDT") : { label: "山寨", tp: 0.03, sl: 0.015 };
+  const tpPf = isLong ? curPrice * (1 + pf.tp) : curPrice * (1 - pf.tp);
+  const slPf = isLong ? curPrice * (1 - pf.sl) : curPrice * (1 + pf.sl);
   B$("btStratPreview").innerHTML = `
-    ${btDir === "long" ? "📈做多" : "📉做空"} | 仓位 $${(m*lev).toLocaleString()} (${qty<1?qty.toFixed(6):qty.toFixed(3)}) |
-    爆仓 <b class="bt-red">${fmtP(liq)}</b> |
-    入→出 ${fmtP(entry)}→${fmtP(exit)} 盈亏 <b class="${pnl>=0?'bt-green':'bt-red'}">${fmtU(pnl)}</b>`;
+    <b>${isLong ? "📈做多" : "📉做空"} ${curCoin}</b> | 仓位 <b>$${(m*lev).toLocaleString()}</b> (${qty<1?qty.toFixed(6):qty.toFixed(3)})<br>
+    现价 <b>${fmtP(curPrice)}</b> | 爆仓 <b class="bt-red">${fmtP(liq)}</b><br>
+    固定止盈+2% <b class="bt-green">${fmtP(tp)}</b> / 止损-1% <b class="bt-red">${fmtP(sl)}</b><br>
+    ${pf.label}档止盈+${(pf.tp*100).toFixed(1)}% <b class="bt-green">${fmtP(tpPf)}</b> / 止损-${(pf.sl*100).toFixed(1)}% <b class="bt-red">${fmtP(slPf)}</b>`;
 }
 
-// 计算器
-["btCalcLev", "btCalcMargin", "btMmr"].forEach(id => B$(id).addEventListener("input", updateCalc));
-B$("btEntry")?.addEventListener("input", updateCalc);
 function updateCalc() {
+  if (curPrice <= 0) return;
   const lev = Math.min(125, Math.max(1, +B$("btCalcLev").value || 10));
   const m = +B$("btCalcMargin").value || 100;
   const mmr = +B$("btMmr").value || 0.005;
-  const entry = +B$("btEntry").value || curPrice;
-  const exit = +B$("btExit").value || entry;
-  if (entry <= 0) return;
+  const exit = +B$("btCalcExit").value || curPrice;
   const imr = 1 / lev;
-  const liqL = entry * (1 - imr + mmr), liqS = entry * (1 + imr - mmr);
+  B$("btCalcPrice").textContent = `现价 ${fmtP(curPrice)}`;
+  const liqL = curPrice * (1 - imr + mmr), liqS = curPrice * (1 + imr - mmr);
   B$("btLiqLong").textContent = fmtP(liqL);
   B$("btLiqShort").textContent = fmtP(liqS);
-  B$("btSlLong").textContent = fmtP(entry * 0.99);
-  B$("btSlShort").textContent = fmtP(entry * 1.01);
-  B$("btTpLong").textContent = fmtP(entry * 1.02);
-  B$("btTpShort").textContent = fmtP(entry * 0.98);
-  const qty = m * lev / entry;
-  const pnlL = (exit - entry) * qty, pnlS = (entry - exit) * qty;
-  B$("btPnlLong").textContent = fmtU(pnlL);
-  B$("btPnlLong").className = pnlL >= 0 ? "bt-green" : "bt-red";
-  B$("btPnlShort").textContent = fmtU(pnlS);
-  B$("btPnlShort").className = pnlS >= 0 ? "bt-green" : "bt-red";
-  B$("btPosSize").textContent = "$" + (m * lev).toLocaleString();
+  B$("btSlLong").textContent = fmtP(curPrice * 0.99);
+  B$("btSlShort").textContent = fmtP(curPrice * 1.01);
+  B$("btTpLong").textContent = fmtP(curPrice * 1.02);
+  B$("btTpShort").textContent = fmtP(curPrice * 0.98);
+  const qty = m * lev / curPrice;
+  const pnlL = (exit - curPrice) * qty, pnlS = (curPrice - exit) * qty;
+  const pl = B$("btPnlLong"); pl.textContent = fmtU(pnlL); pl.className = pnlL >= 0 ? "bt-green" : "bt-red";
+  const ps = B$("btPnlShort"); ps.textContent = fmtU(pnlS); ps.className = pnlS >= 0 ? "bt-green" : "bt-red";
+  B$("btPosSize").textContent = "$" + (m * lev).toLocaleString() + ` (${qty<1?qty.toFixed(4):qty.toFixed(2)})`;
   B$("btTpProfit").textContent = "+$" + (m * lev * 0.02).toFixed(2);
 }
-// 初始触发
-updateStrat(); updateCalc();
 
 // ==================== 雷达iframe消息: 点币切换 ====================
 window.addEventListener("message", (e) => {
