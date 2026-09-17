@@ -424,3 +424,14 @@ function updateCalc() {
 }
 // 初始触发
 updateStrat(); updateCalc();
+
+// ==================== 雷达iframe消息: 点币切换 ====================
+window.addEventListener("message", (e) => {
+  if (e.data?.type === "switchCoin" && e.data.sym) {
+    const sym = e.data.sym.toUpperCase().replace("USDT", "");
+    if (!COINS.find(c => c.sym === sym)) COINS.push({ sym, name: "" });
+    curCoin = sym;
+    B$("btRadarOverlay").classList.add("hidden");
+    onCoinChange();
+  }
+});
